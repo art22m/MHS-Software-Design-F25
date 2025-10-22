@@ -9,7 +9,7 @@ import (
 type CommandName string
 
 const (
-	EnvAssignmentCmd = CommandName("envAssignment")
+	EnvAssignmentCmd = CommandName("$")
 )
 
 type CommandDescription struct {
@@ -48,7 +48,7 @@ func NewShell() *Shell {
 	return &Shell{
 		inputProcessor: NewInputProcessor(),
 		env:            env,
-		runner:         NewPipelineRunner(NewCommandFactory(env)),
+		runner:         NewPipelineRunner(env, NewCommandFactory(env)),
 	}
 }
 
