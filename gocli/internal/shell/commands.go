@@ -23,6 +23,10 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 			key:   d.arguments[0],
 			value: d.arguments[1],
 		}, nil
+	case ExitCommand:
+		return &exitCommand{}, nil
+	case PWDCommand:
+		return &pwdCommand{}, nil
 	default:
 		return &externalCommand{
 			args:        d.arguments,
@@ -34,6 +38,8 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 
 var (
 	_ Command = (*envAssignmentCmd)(nil)
+	_ Command = (*pwdCommand)(nil)
+	_ Command = (*exitCommand)(nil)
 	_ Command = (*externalCommand)(nil)
 )
 
@@ -45,6 +51,27 @@ type envAssignmentCmd struct {
 func (e *envAssignmentCmd) Execute(in string, out string, env Env) (retCode int, exited bool) {
 	e.env.Set(e.key, e.value)
 	return 0, false
+}
+
+type pwdCommand struct {
+}
+
+func (c *pwdCommand) Execute(in string, out string, env Env) (retCode int, exited bool) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return -1, true
+	}
+
+	os.Stdout.WriteString(cwd + "\n")
+
+	return 0, false
+}
+
+type exitCommand struct {
+}
+
+func (e *exitCommand) Execute(in string, out string, env Env) (retCode int, exited bool) {
+	return 0, true
 }
 
 type externalCommand struct {
