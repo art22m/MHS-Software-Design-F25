@@ -42,7 +42,7 @@ type Shell struct {
 }
 
 type Command interface {
-	Execute(in, out string, env Env) (retCode int, exited bool)
+	Execute(in *os.File, out *os.File, env Env) (retCode int, exited bool)
 }
 
 func NewShell() *Shell {

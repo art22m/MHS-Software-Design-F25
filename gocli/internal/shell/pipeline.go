@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"os"
 	"regexp"
 	"strings"
 )
@@ -21,6 +22,14 @@ type pipelineRunner struct {
 var varDollar = regexp.MustCompile(`\$(\w+)|\$\{([^}]+)\}`)
 
 func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCode int, exited bool) {
+	// handle opened descriptors if are any
+	toClose := make([]*os.File, 0)
+	defer func() {
+		for _, f := range toClose {
+			_ = f.Close()
+		}
+	}()
+
 	for _, desc := range pipeline {
 		substitutedArgs := make([]string, 0, len(desc.arguments))
 		for _, arg := range desc.arguments {
@@ -49,7 +58,28 @@ func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCod
 			return 127, false // similar to unix-like shells not found
 		}
 
-		code, shouldExit := cmd.Execute(desc.fileInPath, desc.fileOutPath, env)
+		var (
+			inDescriptor  *os.File = os.Stdin
+			outDescriptor *os.File = os.Stdout
+		)
+
+		if desc.fileInPath != "" {
+			inDescriptor, err = os.Create(desc.fileInPath)
+			if err != nil {
+				return -1, true
+			}
+			toClose = append(toClose, inDescriptor)
+		}
+
+		if desc.fileOutPath != "" {
+			outDescriptor, err = os.Create(desc.fileOutPath)
+			if err != nil {
+				return -1, true
+			}
+			toClose = append(toClose, outDescriptor)
+		}
+
+		code, shouldExit := cmd.Execute(inDescriptor, outDescriptor, env)
 		if shouldExit {
 			return code, true
 		}

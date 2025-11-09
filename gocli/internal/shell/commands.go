@@ -48,7 +48,7 @@ type envAssignmentCmd struct {
 	key, value string
 }
 
-func (e *envAssignmentCmd) Execute(in string, out string, env Env) (retCode int, exited bool) {
+func (e *envAssignmentCmd) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
 	e.env.Set(e.key, e.value)
 	return 0, false
 }
@@ -56,7 +56,7 @@ func (e *envAssignmentCmd) Execute(in string, out string, env Env) (retCode int,
 type pwdCommand struct {
 }
 
-func (c *pwdCommand) Execute(in string, out string, env Env) (retCode int, exited bool) {
+func (c *pwdCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return -1, true
@@ -70,7 +70,7 @@ func (c *pwdCommand) Execute(in string, out string, env Env) (retCode int, exite
 type exitCommand struct {
 }
 
-func (e *exitCommand) Execute(in string, out string, env Env) (retCode int, exited bool) {
+func (e *exitCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
 	return 0, true
 }
 
@@ -80,14 +80,14 @@ type externalCommand struct {
 	redirectIn  bool
 }
 
-func (e *externalCommand) Execute(in string, out string, env Env) (retCode int, exited bool) {
+func (e *externalCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
 	cmdName := e.args[0]
 	cmdArgs := e.args[1:]
 
 	cmd := exec.Command(cmdName, cmdArgs...)
-	// todo redirect
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
+	cmd.Stdin = in
+	cmd.Stdout = out
+	// always to os.Stderr since it's not specified in hw
 	cmd.Stderr = os.Stderr
 
 	err := cmd.Run()
