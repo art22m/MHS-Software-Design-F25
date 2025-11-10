@@ -12,6 +12,7 @@ const (
 	EnvAssignmentCmd = CommandName("$")
 	ExitCommand      = CommandName("exit")
 	PWDCommand       = CommandName("pwd")
+	CatCommand       = CommandName("cat")
 )
 
 type CommandDescription struct {

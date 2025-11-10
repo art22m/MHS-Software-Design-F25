@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 )
@@ -27,6 +28,13 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 		return &exitCommand{}, nil
 	case PWDCommand:
 		return &pwdCommand{}, nil
+	case CatCommand:
+		if len(d.arguments) < 2 {
+			return nil, fmt.Errorf("cat: missing file argument")
+		}
+		return &catCommand{
+			filePath: d.arguments[1],
+		}, nil
 	default:
 		return &externalCommand{
 			args:        d.arguments,
@@ -40,6 +48,7 @@ var (
 	_ Command = (*envAssignmentCmd)(nil)
 	_ Command = (*pwdCommand)(nil)
 	_ Command = (*exitCommand)(nil)
+	_ Command = (*catCommand)(nil)
 	_ Command = (*externalCommand)(nil)
 )
 
@@ -72,6 +81,27 @@ type exitCommand struct {
 
 func (e *exitCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
 	return 0, true
+}
+
+type catCommand struct {
+	filePath string
+}
+
+func (c *catCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
+	file, err := os.Open(c.filePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cat: %v\n", err)
+		return 1, false
+	}
+	defer file.Close()
+
+	_, err = io.Copy(out, file)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cat: %v\n", err)
+		return 1, false
+	}
+
+	return 0, false
 }
 
 type externalCommand struct {
