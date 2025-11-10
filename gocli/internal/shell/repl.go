@@ -13,6 +13,7 @@ const (
 	ExitCommand      = CommandName("exit")
 	PWDCommand       = CommandName("pwd")
 	CatCommand       = CommandName("cat")
+	EchoCommand      = CommandName("echo")
 )
 
 type CommandDescription struct {

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 func NewCommandFactory(env Env) CommandFactory {
@@ -35,6 +36,10 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 		return &catCommand{
 			filePath: d.arguments[1],
 		}, nil
+	case EchoCommand:
+		return &echoCommand{
+			args: d.arguments[1:],
+		}, nil
 	default:
 		return &externalCommand{
 			args:        d.arguments,
@@ -49,6 +54,7 @@ var (
 	_ Command = (*pwdCommand)(nil)
 	_ Command = (*exitCommand)(nil)
 	_ Command = (*catCommand)(nil)
+	_ Command = (*echoCommand)(nil)
 	_ Command = (*externalCommand)(nil)
 )
 
@@ -101,6 +107,16 @@ func (c *catCommand) Execute(in, out *os.File, env Env) (retCode int, exited boo
 		return 1, false
 	}
 
+	return 0, false
+}
+
+type echoCommand struct {
+	args []string
+}
+
+func (e *echoCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
+	output := strings.Join(e.args, " ")
+	fmt.Fprintln(out, output)
 	return 0, false
 }
 
