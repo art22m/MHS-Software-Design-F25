@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -40,6 +41,13 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 		return &echoCommand{
 			args: d.arguments[1:],
 		}, nil
+	case WCCommand:
+		if len(d.arguments) < 2 {
+			return nil, fmt.Errorf("wc: missing file argument")
+		}
+		return &wcCommand{
+			filePath: d.arguments[1],
+		}, nil
 	default:
 		return &externalCommand{
 			args:        d.arguments,
@@ -55,6 +63,7 @@ var (
 	_ Command = (*exitCommand)(nil)
 	_ Command = (*catCommand)(nil)
 	_ Command = (*echoCommand)(nil)
+	_ Command = (*wcCommand)(nil)
 	_ Command = (*externalCommand)(nil)
 )
 
@@ -117,6 +126,50 @@ type echoCommand struct {
 func (e *echoCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
 	output := strings.Join(e.args, " ")
 	fmt.Fprintln(out, output)
+	return 0, false
+}
+
+type wcCommand struct {
+	filePath string
+}
+
+func (w *wcCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
+	file, err := os.Open(w.filePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "wc: %v\n", err)
+		return 1, false
+	}
+	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "wc: %v\n", err)
+		return 1, false
+	}
+
+	bytes := fileInfo.Size()
+
+	file.Seek(0, 0)
+	scanner := bufio.NewScanner(file)
+
+	lines := 0
+	words := 0
+
+	for scanner.Scan() {
+		lines++
+		line := scanner.Text()
+		if line != "" {
+			words += len(strings.Fields(line))
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "wc: %v\n", err)
+		return 1, false
+	}
+
+	fmt.Fprintf(out, "%d %d %d %s\n", lines, words, bytes, w.filePath)
+
 	return 0, false
 }
 

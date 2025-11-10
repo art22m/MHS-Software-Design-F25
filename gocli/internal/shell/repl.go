@@ -14,6 +14,7 @@ const (
 	PWDCommand       = CommandName("pwd")
 	CatCommand       = CommandName("cat")
 	EchoCommand      = CommandName("echo")
+	WCCommand        = CommandName("wc")
 )
 
 type CommandDescription struct {
