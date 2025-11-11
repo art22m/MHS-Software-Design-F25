@@ -32,13 +32,13 @@ jobs:
       working-directory: ./gocli
       run: go build -v ./...
 
-    - name: Run tests
-      working-directory: ./gocli
-      run: go test -v -race ./...
-
     - name: Run golangci-lint
       uses: golangci/golangci-lint-action@v6
       with:
         version: latest
         working-directory: gocli
         args: --timeout=5m
+
+    - name: Run tests
+      working-directory: ./gocli
+      run: go test -v -race ./...
