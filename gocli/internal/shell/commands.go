@@ -98,7 +98,7 @@ func (c *pwdCommand) Execute(in, out *os.File, env Env) (retCode int, exited boo
 		return -1, true
 	}
 
-	_, _ = os.Stdout.WriteString(cwd + "\n")
+	_, _ = fmt.Fprintln(out, cwd)
 
 	return 0, false
 }
