@@ -60,8 +60,8 @@ func NewShell() *Shell {
 func (s *Shell) Run() int {
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		os.Stdout.WriteString("$ ")
-		os.Stdout.Sync()
+		_, _ = os.Stdout.WriteString("$ ")
+		_ = os.Stdout.Sync()
 
 		if !scanner.Scan() {
 			break

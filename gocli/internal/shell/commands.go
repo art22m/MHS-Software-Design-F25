@@ -86,7 +86,7 @@ func (c *pwdCommand) Execute(in, out *os.File, env Env) (retCode int, exited boo
 		return -1, true
 	}
 
-	os.Stdout.WriteString(cwd + "\n")
+	_, _ = os.Stdout.WriteString(cwd + "\n")
 
 	return 0, false
 }
@@ -105,14 +105,16 @@ type catCommand struct {
 func (c *catCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
 	file, err := os.Open(c.filePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cat: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "cat: %v\n", err)
 		return 1, false
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	_, err = io.Copy(out, file)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "cat: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "cat: %v\n", err)
 		return 1, false
 	}
 
@@ -125,7 +127,7 @@ type echoCommand struct {
 
 func (e *echoCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
 	output := strings.Join(e.args, " ")
-	fmt.Fprintln(out, output)
+	_, _ = fmt.Fprintln(out, output)
 	return 0, false
 }
 
@@ -136,20 +138,22 @@ type wcCommand struct {
 func (w *wcCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
 	file, err := os.Open(w.filePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "wc: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "wc: %v\n", err)
 		return 1, false
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "wc: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "wc: %v\n", err)
 		return 1, false
 	}
 
 	bytes := fileInfo.Size()
 
-	file.Seek(0, 0)
+	_, _ = file.Seek(0, 0)
 	scanner := bufio.NewScanner(file)
 
 	lines := 0
@@ -164,11 +168,11 @@ func (w *wcCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool
 	}
 
 	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "wc: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "wc: %v\n", err)
 		return 1, false
 	}
 
-	fmt.Fprintf(out, "%d %d %d %s\n", lines, words, bytes, w.filePath)
+	_, _ = fmt.Fprintf(out, "%d %d %d %s\n", lines, words, bytes, w.filePath)
 
 	return 0, false
 }
@@ -194,7 +198,7 @@ func (e *externalCommand) Execute(in, out *os.File, env Env) (retCode int, exite
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			return exitErr.ExitCode(), false
 		}
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		return 1, false
 	}
 	return 0, false

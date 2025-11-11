@@ -59,8 +59,8 @@ func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCod
 		}
 
 		var (
-			inDescriptor  *os.File = os.Stdin
-			outDescriptor *os.File = os.Stdout
+			inDescriptor  = os.Stdin
+			outDescriptor = os.Stdout
 		)
 
 		if desc.fileInPath != "" {
