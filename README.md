@@ -1,129 +1,176 @@
 # CLI. Простой интерпретатор командой строки
 
 Поддерживает команды:
-- cat [FILE] - вывести на экран содержимое файла
-- echo - вывести на экран свой аругмент (или аргументы)
-- wc [FILE] - вывести количество строк, слов и байт в файле
-- pwd - распечатать текущую директорию
-- exit - выйти из интерпретатора
+- `cat FILE` - вывести на экран содержимое файла
+- `echo [ARGS...]` - вывести на экран свой аргумент (или аргументы)
+- `wc FILE` - вывести количество строк, слов и байт в файле
+- `pwd` - распечатать текущую директорию
+- `exit` - выйти из интерпретатора
+- `VAR=value` - присвоить значение переменной окружения
+- Внешние команды - запуск исполняемых файлов из системы
 
 Дополнительно поддерживаются:
-- Одинарыне и двойные кавычки (full и weak quoting)
-- Окружение (команды вида "имя=значение), оператор $
-- Вызов внешней программы через Process 
-- Пайплайны (оператор "|")
+- Переменные окружения (синтаксис `$VAR` и `${VAR}`)
+- Перенаправление ввода/вывода (`<` и `>`)
+- Множественные команды через разделитель `;`
+- Вызов внешних программ через `os/exec`
 
 ### Как запустить
 
-TODO
+```bash
+go run cmd/main.go
+```
+
+Или собрать исполняемый файл:
+```bash
+go build -o cli cmd/main.go
+./cli
+```
+
+Запуск тестов:
+```bash
+go test -v ./...
+```
 
 
 ### Архитектура
 Архитектура состоит из четырёх основных функциональных областей:
-1. Контекст Сессии
-    1. Shell: Главный цикл программы. Он отвечает за чтение пользовательского ввода и передачу его на исполнение
-    2. Environment: Хранилище переменных окружения (`map[string]string`), доступное всем этапам обработки и исполнения
-2. Анализ и Парсинг
-    1. InputProcessor: Отвечает за всю работу с пользовательской строкой. Преобразует сырой ввод в структурированный список команд, готовых к запуску
-3. Исполнение и Оркестрация
-    1. PipelineRunner: управляет исполнением комманд (`[]CommandDescription`)
-    * Создаёт и связывает пайпы между командами
-    * Обрабатывает перенаправления в/из файлов.
-    * Применяет переменные окружения перед запуском каждой команды
-    2. CommandFactory: Фабрика возвращает конкретный объект, реализующий интерфейс `Command`
-4. Команда (Интерфейс)
-    1. Определяет единый контракт для всех команд (`Execute`)
-    2. Включает реализации для команд `Cat`, `wc`, ... и `ExternalCommand` для запуска внешних исполняемых файлов
+
+1. **Контекст Сессии**
+    - **Shell**: Главный цикл программы (REPL). Отвечает за чтение пользовательского ввода и передачу его на исполнение
+    - **Environment**: Хранилище переменных окружения (`map[string]string`), доступное всем этапам обработки и исполнения
+
+2. **Анализ и Парсинг**
+    - **InputProcessor**: Отвечает за всю работу с пользовательской строкой. Преобразует сырой ввод в структурированный список команд `[]CommandDescription`, готовых к запуску
+    - Поддерживает разделение команд по `;`, присвоение переменных, перенаправления ввода/вывода
+
+3. **Исполнение и Оркестрация**
+    - **PipelineRunner**: управляет последовательным исполнением команд (`[]CommandDescription`)
+      - Обрабатывает перенаправления в/из файлов (`<` и `>`)
+      - Применяет подстановку переменных окружения (поддерживает `$VAR` и `${VAR}`)
+      - Вызывает фабрику команд для получения конкретной реализации
+    - **CommandFactory**: Фабрика возвращает конкретный объект, реализующий интерфейс `Command` на основе имени команды
+
+4. **Команда (Интерфейс)**
+    - Определяет единый контракт для всех команд: `Execute(in, out *os.File, env Env) (retCode int, exited bool)`
+    - Включает реализации для команд `Cat`, `Echo`, `Wc`, `Pwd`, `Exit`, `EnvAssignment` и `ExternalCommand` для запуска внешних исполняемых файлов
 
 ### Модель данных команды
 ```go
 type CommandDescription struct {
-    Name        string
-    Arguments   []string
-    FileOutPath *string // Используется для перенаправления >
-    FileInPath  *string // Используется для перенаправления <
-    IsPipedOut  bool    // Флаг: вывод направляется в pipe к следующей команде
-    IsPipedIn   bool    // Флаг: ввод берётся из pipe от предыдущей команды
+    name        CommandName  // Имя команды или тип операции
+    arguments   []string     // Аргументы команды
+    fileInPath  string       // Путь для перенаправления ввода (<)
+    fileOutPath string       // Путь для перенаправления вывода (>)
+    isPiped     bool         // Флаг: команда является частью pipeline (зарезервировано для будущей реализации)
 }
 ```
 
-Для присваивание переменных окружений также используется структура `CommandDescription`, в которой `Name` равен '=' и массив `Arguments` из двух элементов: куда и что присваиваем.
+Для присваивания переменных окружения используется структура `CommandDescription`, в которой `name` равен `EnvAssignmentCmd` (символ `$`) и массив `arguments` из двух элементов: имя переменной и значение.
 
 ## Диаграмма
 ```mermaid
 classDiagram
-    direction LR
+    direction TB
 
     class Shell {
-        +Run(): int
+        -inputProcessor: InputProcessor
+        -runner: PipelineRunner
+        -env: Env
+        +Run() int
     }
-    class Environment {
-        Variables map<string, string>
-        +Get(key): string
+
+    class Env {
+        <<interface>>
+        +Get(key): (string, bool)
         +Set(key, value)
     }
 
-    Shell --> Environment : uses
+    class Environment {
+        -variables: map~string,string~
+        +Get(key): (string, bool)
+        +Set(key, value)
+    }
+
+    Environment ..|> Env
+
+    Shell --> Env : uses
+    Shell --> InputProcessor : uses
+    Shell --> PipelineRunner : uses
 
     class CommandDescription {
         <<data>>
-        +Name: string
-        +Arguments: []string
-        +FileOutPath: *string
-        +FileInPath: *string
-        +IsPipedOut: bool
-        +IsPipedIn: bool
+        -name: CommandName
+        -arguments: []string
+        -fileInPath: string
+        -fileOutPath: string
+        -isPiped: bool
     }
 
     class InputProcessor {
-        +Process(input, env): []CommandDescription
+        <<interface>>
+        +Parse(input): []CommandDescription
     }
 
-    Shell --> InputProcessor : uses
     InputProcessor "1" --> "*" CommandDescription : creates
 
     class PipelineRunner {
-        +Execute(pipeline: []CommandDescription, env): int
-        -createPipesAndRun(description, inputStream, outputStream)
-    }
-    
-    class CommandFactory {
-        +GetCommand(description: CommandDescription): Command
+        <<interface>>
+        +Execute(pipeline, env): (int, bool)
     }
 
-    Shell --> PipelineRunner : uses
-    PipelineRunner --> CommandFactory : resolves
+    class CommandFactory {
+        <<interface>>
+        +GetCommand(CommandDescription): (Command, error)
+    }
+
+    PipelineRunner --> CommandFactory : uses
     PipelineRunner ..> Command : invokes Execute()
 
     class Command {
         <<interface>>
-        +Execute(in, out, env): int
+        +Execute(in, out, env): (int, bool)
     }
 
-    class AssignEnvCommand
-    class CatCommand
-    class EchoCommand
-    class WcCommand
-    class PwdCommand
-    class ExitCommand
-    class ExternalCommand
-    
-    AssignEnvCommand --|> Command
-    CatCommand --|> Command
-    EchoCommand --|> Command
-    WcCommand --|> Command
-    PwdCommand --|> Command
-    ExitCommand --|> Command
-    ExternalCommand --|> Command
+    class envAssignmentCmd {
+        -env: Env
+        -key: string
+        -value: string
+    }
+    class catCommand {
+        -filePath: string
+    }
+    class echoCommand {
+        -args: []string
+    }
+    class wcCommand {
+        -filePath: string
+    }
+    class pwdCommand
+    class exitCommand
+    class externalCommand {
+        -name: string
+        -args: []string
+    }
+
+    envAssignmentCmd ..|> Command
+    catCommand ..|> Command
+    echoCommand ..|> Command
+    wcCommand ..|> Command
+    pwdCommand ..|> Command
+    exitCommand ..|> Command
+    externalCommand ..|> Command
+
+    CommandFactory --> Command : creates
 
 ```
 
 #### Особенности архитектуры
-1. Если exit находится вначале или в середине пайплайна, то он игнорируется
-   ```
-    echo "1" | exit | echo "2"
-   ```
-2. Если exit находится в конце пайплайна, то процесс завершается
+1. Команды выполняются последовательно, одна за другой
+2. Команда `exit` завершает работу shell с кодом возврата последней выполненной команды
+3. Переменные окружения видны всем командам в рамках одной сессии
+4. Перенаправление ввода/вывода работает независимо для каждой команды
+5. Неизвестные команды передаются в систему для запуска как внешние программы (через `os/exec`)
 
 ### Контакты
 1. Алексей Лимонов (tg:@olexvp)
