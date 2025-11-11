@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -40,7 +41,11 @@ func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCod
 
 	for _, desc := range pipeline {
 		substitutedArgs := make([]string, 0, len(desc.arguments))
-		for _, arg := range desc.arguments {
+		for i, arg := range desc.arguments {
+			if desc.singleQuotedArgs != nil && desc.singleQuotedArgs[i] {
+				substitutedArgs = append(substitutedArgs, arg)
+				continue
+			}
 
 			substituted := varDollar.ReplaceAllStringFunc(arg, func(match string) string {
 				if strings.HasPrefix(match, "${") && strings.HasSuffix(match, "}") {
@@ -72,9 +77,10 @@ func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCod
 		)
 
 		if desc.fileInPath != "" {
-			inDescriptor, err = os.Create(desc.fileInPath)
+			inDescriptor, err = os.Open(desc.fileInPath)
 			if err != nil {
-				return -1, true
+				_, _ = fmt.Fprintf(os.Stderr, "error opening input file: %v\n", err)
+				return 1, false
 			}
 			toClose = append(toClose, inDescriptor)
 		}
@@ -82,7 +88,8 @@ func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCod
 		if desc.fileOutPath != "" {
 			outDescriptor, err = os.Create(desc.fileOutPath)
 			if err != nil {
-				return -1, true
+				_, _ = fmt.Fprintf(os.Stderr, "error creating output file: %v\n", err)
+				return 1, false
 			}
 			toClose = append(toClose, outDescriptor)
 		}

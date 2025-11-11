@@ -33,22 +33,32 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 	case PWDCommand:
 		return &pwdCommand{}, nil
 	case CatCommand:
-		if len(d.arguments) < 2 {
+		var filePath string
+		if len(d.arguments) >= 2 {
+			filePath = d.arguments[1]
+		} else if d.fileInPath != "" {
+			filePath = d.fileInPath
+		} else {
 			return nil, fmt.Errorf("cat: missing file argument")
 		}
 		return &catCommand{
-			filePath: d.arguments[1],
+			filePath: filePath,
 		}, nil
 	case EchoCommand:
 		return &echoCommand{
 			args: d.arguments[1:],
 		}, nil
 	case WCCommand:
-		if len(d.arguments) < 2 {
+		var filePath string
+		if len(d.arguments) >= 2 {
+			filePath = d.arguments[1]
+		} else if d.fileInPath != "" {
+			filePath = d.fileInPath
+		} else {
 			return nil, fmt.Errorf("wc: missing file argument")
 		}
 		return &wcCommand{
-			filePath: d.arguments[1],
+			filePath: filePath,
 		}, nil
 	default:
 		return &externalCommand{
@@ -105,16 +115,22 @@ type catCommand struct {
 }
 
 func (c *catCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
-	file, err := os.Open(c.filePath)
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "cat: %v\n", err)
-		return 1, false
+	var source io.Reader
+	if c.filePath != "" {
+		file, err := os.Open(c.filePath)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "cat: %v\n", err)
+			return 1, false
+		}
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(file)
+		source = file
+	} else {
+		source = in
 	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
 
-	_, err = io.Copy(out, file)
+	_, err := io.Copy(out, source)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "cat: %v\n", err)
 		return 1, false
@@ -192,8 +208,15 @@ func (e *externalCommand) Execute(in, out *os.File, env Env) (retCode int, exite
 	cmd := exec.Command(cmdName, cmdArgs...)
 	cmd.Stdin = in
 	cmd.Stdout = out
-	// always to os.Stderr since it's not specified in hw
 	cmd.Stderr = os.Stderr
+
+	envMap := env.GetAll()
+
+	envList := make([]string, 0, len(envMap))
+	for k, v := range envMap {
+		envList = append(envList, k+"="+v)
+	}
+	cmd.Env = envList
 
 	err := cmd.Run()
 	if err != nil {

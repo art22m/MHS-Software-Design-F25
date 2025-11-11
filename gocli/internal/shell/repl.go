@@ -27,11 +27,12 @@ const (
 // CommandDescription contains all information needed to execute a command,
 // including its name, arguments, and I/O redirection paths.
 type CommandDescription struct {
-	name        CommandName
-	arguments   []string
-	fileInPath  string
-	fileOutPath string
-	isPiped     bool
+	name             CommandName
+	arguments        []string
+	fileInPath       string
+	fileOutPath      string
+	isPiped          bool
+	singleQuotedArgs map[int]bool
 }
 
 // Env provides an interface for managing environment variables.
@@ -41,6 +42,8 @@ type Env interface {
 	Get(key string) (value string, ok bool)
 	// Set assigns a value to an environment variable.
 	Set(key, value string)
+	// GetAll returns all environment variables as a map.
+	GetAll() map[string]string
 }
 
 // InputProcessor parses user input into command descriptions.
@@ -88,6 +91,7 @@ func NewShell() *Shell {
 // Returns the exit code of the last executed command or 0 on normal termination.
 func (s *Shell) Run() int {
 	scanner := bufio.NewScanner(os.Stdin)
+	lastRetCode := 0
 	for {
 		_, _ = os.Stdout.WriteString("$ ")
 		_ = os.Stdout.Sync()
@@ -103,9 +107,10 @@ func (s *Shell) Run() int {
 		}
 
 		retCode, isExited := s.runner.Execute(cmds, s.env)
+		lastRetCode = retCode
 		if isExited {
 			return retCode
 		}
 	}
-	return 0
+	return lastRetCode
 }

@@ -11,6 +11,65 @@ func NewInputProcessor() InputProcessor {
 type inputProcessor struct {
 }
 
+func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
+	var tokens []string
+	singleQuoted := make(map[int]bool)
+	var current strings.Builder
+	inSingleQuote := false
+	inDoubleQuote := false
+	tokenStartedInSingle := false
+
+	for i := 0; i < len(input); i++ {
+		char := input[i]
+
+		if char == '\'' && !inDoubleQuote {
+			if inSingleQuote {
+				inSingleQuote = false
+			} else {
+				inSingleQuote = true
+				if current.Len() == 0 {
+					tokenStartedInSingle = true
+				}
+			}
+			continue
+		}
+
+		if char == '"' && !inSingleQuote {
+			if inDoubleQuote {
+				inDoubleQuote = false
+			} else {
+				inDoubleQuote = true
+			}
+			continue
+		}
+
+		if (char == ' ' || char == '\t') && !inSingleQuote && !inDoubleQuote {
+			if current.Len() > 0 {
+				idx := len(tokens)
+				tokens = append(tokens, current.String())
+				if tokenStartedInSingle && !inSingleQuote {
+					singleQuoted[idx] = true
+				}
+				current.Reset()
+				tokenStartedInSingle = false
+			}
+			continue
+		}
+
+		current.WriteByte(char)
+	}
+
+	if current.Len() > 0 {
+		idx := len(tokens)
+		tokens = append(tokens, current.String())
+		if tokenStartedInSingle && !inSingleQuote {
+			singleQuoted[idx] = true
+		}
+	}
+
+	return tokens, singleQuoted
+}
+
 // Parse implements InputProcessor interface.
 // Parses the input string into a list of CommandDescriptions by splitting on semicolons,
 // handling variable assignments, and processing I/O redirection operators (< and >).
@@ -24,7 +83,7 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 			continue
 		}
 
-		tokens := strings.Fields(rawCmd)
+		tokens, singleQuotedTokens := tokenizeWithQuotes(rawCmd)
 		if len(tokens) == 0 {
 			continue
 		}
@@ -43,6 +102,8 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 
 		var inFile, outFile string
 		newArgs := []string{}
+		singleQuotedArgs := make(map[int]bool)
+		argIdx := 0
 		for j := 0; j < len(tokens); j++ {
 			if tokens[j] == "<" && j+1 < len(tokens) {
 				inFile = tokens[j+1]
@@ -52,6 +113,10 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 				j++
 			} else {
 				newArgs = append(newArgs, tokens[j])
+				if singleQuotedTokens[j] {
+					singleQuotedArgs[argIdx] = true
+				}
+				argIdx++
 			}
 		}
 
@@ -63,11 +128,12 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 		args := newArgs[:]
 
 		descriptions = append(descriptions, CommandDescription{
-			name:        cmdName,
-			arguments:   args,
-			fileInPath:  inFile,
-			fileOutPath: outFile,
-			isPiped:     false,
+			name:             cmdName,
+			arguments:        args,
+			fileInPath:       inFile,
+			fileOutPath:      outFile,
+			isPiped:          false,
+			singleQuotedArgs: singleQuotedArgs,
 		})
 	}
 
