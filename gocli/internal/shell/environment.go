@@ -1,5 +1,7 @@
 package shell
 
+// NewEnv creates a new Env instance backed by an in-memory map
+// for storing and retrieving environment variables.
 func NewEnv() Env {
 	return &envMap{
 		store: make(map[string]string),

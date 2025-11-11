@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+// NewCommandFactory creates a new CommandFactory that uses the given
+// environment to create command instances.
 func NewCommandFactory(env Env) CommandFactory {
 	return &commandFactory{env}
 }

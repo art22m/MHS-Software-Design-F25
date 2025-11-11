@@ -2,6 +2,8 @@ package shell
 
 import "strings"
 
+// NewInputProcessor creates a new InputProcessor instance
+// for parsing shell input into command descriptions.
 func NewInputProcessor() InputProcessor {
 	return &inputProcessor{}
 }

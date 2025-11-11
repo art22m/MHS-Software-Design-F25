@@ -6,10 +6,14 @@ import (
 	"strings"
 )
 
+// CommandFactory creates Command instances based on CommandDescription.
 type CommandFactory interface {
+	// GetCommand returns a Command instance for the given description.
 	GetCommand(CommandDescription) (Command, error)
 }
 
+// NewPipelineRunner creates a new PipelineRunner that uses the given
+// environment and command factory to execute command pipelines.
 func NewPipelineRunner(env Env, factory CommandFactory) PipelineRunner {
 	return &pipelineRunner{env: env, factory: factory}
 }
