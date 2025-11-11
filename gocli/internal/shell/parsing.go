@@ -11,6 +11,9 @@ func NewInputProcessor() InputProcessor {
 type inputProcessor struct {
 }
 
+// Parse implements InputProcessor interface.
+// Parses the input string into a list of CommandDescriptions by splitting on semicolons,
+// handling variable assignments, and processing I/O redirection operators (< and >).
 func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 	rawCommands := strings.Split(input, ";")
 	descriptions := []CommandDescription{}

@@ -12,11 +12,15 @@ type envMap struct {
 	store map[string]string
 }
 
+// Get implements Env interface.
+// Retrieves the value associated with the given key from the environment store.
 func (e *envMap) Get(key string) (value string, ok bool) {
 	value, ok = e.store[key]
 	return
 }
 
+// Set implements Env interface.
+// Stores a key-value pair in the environment.
 func (e *envMap) Set(key string, value string) {
 	e.store[key] = value
 }

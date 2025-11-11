@@ -25,6 +25,10 @@ type pipelineRunner struct {
 
 var varDollar = regexp.MustCompile(`\$(\w+)|\$\{([^}]+)\}`)
 
+// Execute implements PipelineRunner interface.
+// Processes and executes a sequence of commands in the pipeline, handling environment
+// variable substitution, I/O redirection, and command execution.
+// Returns the exit code of the last command and a boolean indicating whether to exit the shell.
 func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCode int, exited bool) {
 	// handle opened descriptors if are any
 	toClose := make([]*os.File, 0)
