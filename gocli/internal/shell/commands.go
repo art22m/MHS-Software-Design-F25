@@ -36,10 +36,6 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 		var filePath string
 		if len(d.arguments) >= 2 {
 			filePath = d.arguments[1]
-		} else if d.fileInPath != "" {
-			filePath = d.fileInPath
-		} else {
-			return nil, fmt.Errorf("cat: missing file argument")
 		}
 		return &catCommand{
 			filePath: filePath,
@@ -115,19 +111,26 @@ type catCommand struct {
 }
 
 func (c *catCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
-	var source io.Reader
+	var source *os.File
+	var shouldClose bool
+
 	if c.filePath != "" {
 		file, err := os.Open(c.filePath)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "cat: %v\n", err)
 			return 1, false
 		}
-		defer func(file *os.File) {
-			_ = file.Close()
-		}(file)
 		source = file
+		shouldClose = true
 	} else {
 		source = in
+		shouldClose = false
+	}
+
+	if shouldClose {
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(source)
 	}
 
 	_, err := io.Copy(out, source)

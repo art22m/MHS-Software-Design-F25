@@ -72,7 +72,8 @@ func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
 
 // Parse implements InputProcessor interface.
 // Parses the input string into a list of CommandDescriptions by splitting on semicolons,
-// handling variable assignments, and processing I/O redirection operators (< and >).
+// handling variable assignments, processing I/O redirection operators (< and >),
+// and detecting pipe operators (|).
 func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 	rawCommands := strings.Split(input, ";")
 	descriptions := []CommandDescription{}
@@ -83,11 +84,30 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 			continue
 		}
 
-		tokens, singleQuotedTokens := tokenizeWithQuotes(rawCmd)
+		pipedCommands := i.parsePipeline(rawCmd)
+		descriptions = append(descriptions, pipedCommands...)
+	}
+
+	return descriptions, nil
+}
+
+func (i *inputProcessor) parsePipeline(input string) []CommandDescription {
+	parts := strings.Split(input, "|")
+	descriptions := []CommandDescription{}
+
+	for cmdIndex, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// Use proper tokenization with quote handling
+		tokens, _ := tokenizeWithQuotes(part)
 		if len(tokens) == 0 {
 			continue
 		}
 
+		// Handle environment variable assignments
 		var assignments []CommandDescription
 		cmdStartIdx := 0
 
@@ -100,6 +120,7 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 					assignments = append(assignments, CommandDescription{
 						name:      EnvAssignmentCmd,
 						arguments: []string{parts[0], parts[1]},
+						isPiped:   len(parts) > 1,
 					})
 					cmdStartIdx = i + 1
 					continue
@@ -119,10 +140,9 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 			continue
 		}
 
+		// Handle I/O redirection and command arguments
 		var inFile, outFile string
 		newArgs := []string{}
-		singleQuotedArgs := make(map[int]bool)
-		argIdx := 0
 		for j := cmdStartIdx; j < len(tokens); j++ {
 			if tokens[j] == "<" && j+1 < len(tokens) {
 				inFile = tokens[j+1]
@@ -132,10 +152,6 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 				j++
 			} else {
 				newArgs = append(newArgs, tokens[j])
-				if singleQuotedTokens[j] {
-					singleQuotedArgs[argIdx] = true
-				}
-				argIdx++
 			}
 		}
 
@@ -144,17 +160,15 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 		}
 
 		cmdName := CommandName(newArgs[0])
-		args := newArgs[:]
 
 		descriptions = append(descriptions, CommandDescription{
-			name:             cmdName,
-			arguments:        args,
-			fileInPath:       inFile,
-			fileOutPath:      outFile,
-			isPiped:          false,
-			singleQuotedArgs: singleQuotedArgs,
+			name:        cmdName,
+			arguments:   newArgs,
+			fileInPath:  inFile,
+			fileOutPath: outFile,
+			isPiped:     cmdIndex < len(parts)-1, // Only set isPiped for non-last commands
 		})
 	}
 
-	return descriptions, nil
+	return descriptions
 }

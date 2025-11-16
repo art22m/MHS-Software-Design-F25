@@ -158,12 +158,12 @@ func TestCommandFactory_GetCommand(t *testing.T) {
 			},
 		},
 		{
-			name: "cat missing file",
+			name: "cat without file (reads from stdin)",
 			desc: CommandDescription{
 				name:      CatCommand,
 				arguments: []string{"cat"},
 			},
-			wantError: true,
+			wantError: false,
 		},
 		{
 			name: "echo command",
