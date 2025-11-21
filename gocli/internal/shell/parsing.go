@@ -18,6 +18,7 @@ func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
 	inSingleQuote := false
 	inDoubleQuote := false
 	tokenStartedInSingle := false
+	doubleQuoteStart := -1
 
 	for i := 0; i < len(input); i++ {
 		char := input[i]
@@ -37,8 +38,16 @@ func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
 		if char == '"' && !inSingleQuote {
 			if inDoubleQuote {
 				inDoubleQuote = false
+				// When closing double quote, we want to preserve the quotes for substitution
+				if doubleQuoteStart >= 0 {
+					quotedContent := input[doubleQuoteStart : i+1]
+					current.Reset()
+					current.WriteString(quotedContent)
+					doubleQuoteStart = -1
+				}
 			} else {
 				inDoubleQuote = true
+				doubleQuoteStart = i
 			}
 			continue
 		}
@@ -56,7 +65,10 @@ func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
 			continue
 		}
 
-		current.WriteByte(char)
+		// Only add character to current token if we're not at the start of a double-quoted string
+		if !(inDoubleQuote && doubleQuoteStart == i) {
+			current.WriteByte(char)
+		}
 	}
 
 	if current.Len() > 0 {

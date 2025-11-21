@@ -99,3 +99,15 @@ func TestInputProcessor_Parse_MultipleArgs(t *testing.T) {
 	expected := []string{"echo", "hello", "world", "test"}
 	assert.Equal(t, expected, desc.arguments)
 }
+
+func TestInputProcessor_Parse_SubstitutionInArgs(t *testing.T) {
+	processor := NewInputProcessor()
+
+	descriptions, err := processor.Parse(`echo "hello"`)
+	require.NoError(t, err)
+	require.Len(t, descriptions, 1)
+
+	desc := descriptions[0]
+	expected := []string{"echo", `"hello"`}
+	assert.Equal(t, expected, desc.arguments)
+}
