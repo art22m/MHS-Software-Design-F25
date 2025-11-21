@@ -20,7 +20,11 @@
 # Go workspace file
 go.work
 
+# IDE
 .idea
 .idea/
 .DS_Store
 
+# Built binaries
+gocli/cli
+cli
