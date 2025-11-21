@@ -161,3 +161,15 @@ func TestInputProcessor_Parse_PipeWithRedirection(t *testing.T) {
 	desc2 := descriptions[1]
 	assert.Equal(t, CatCommand, desc2.name)
 }
+
+func TestInputProcessor_Parse_SubstitutionInArgs(t *testing.T) {
+	processor := NewInputProcessor()
+
+	descriptions, err := processor.Parse(`echo "hello"`)
+	require.NoError(t, err)
+	require.Len(t, descriptions, 1)
+
+	desc := descriptions[0]
+	expected := []string{"echo", `"hello"`}
+	assert.Equal(t, expected, desc.arguments)
+}
