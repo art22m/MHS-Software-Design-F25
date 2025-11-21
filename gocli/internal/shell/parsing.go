@@ -88,23 +88,42 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 			continue
 		}
 
-		if len(tokens) == 1 && strings.Contains(tokens[0], "=") &&
-			!strings.HasPrefix(tokens[0], "=") && !strings.HasSuffix(tokens[0], "=") {
-			parts := strings.SplitN(tokens[0], "=", 2)
-			if len(parts) == 2 {
-				descriptions = append(descriptions, CommandDescription{
-					name:      EnvAssignmentCmd,
-					arguments: []string{parts[0], parts[1]},
-				})
-				continue
+		var assignments []CommandDescription
+		cmdStartIdx := 0
+
+		for i := 0; i < len(tokens); i++ {
+			if strings.Contains(tokens[i], "=") &&
+				!strings.HasPrefix(tokens[i], "=") && !strings.HasSuffix(tokens[i], "=") &&
+				tokens[i] != "<" && tokens[i] != ">" {
+				parts := strings.SplitN(tokens[i], "=", 2)
+				if len(parts) == 2 {
+					assignments = append(assignments, CommandDescription{
+						name:      EnvAssignmentCmd,
+						arguments: []string{parts[0], parts[1]},
+					})
+					cmdStartIdx = i + 1
+					continue
+				}
 			}
+			break
+		}
+
+		if len(assignments) > 0 && cmdStartIdx >= len(tokens) {
+			descriptions = append(descriptions, assignments...)
+			continue
+		}
+
+		descriptions = append(descriptions, assignments...)
+
+		if cmdStartIdx >= len(tokens) {
+			continue
 		}
 
 		var inFile, outFile string
 		newArgs := []string{}
 		singleQuotedArgs := make(map[int]bool)
 		argIdx := 0
-		for j := 0; j < len(tokens); j++ {
+		for j := cmdStartIdx; j < len(tokens); j++ {
 			if tokens[j] == "<" && j+1 < len(tokens) {
 				inFile = tokens[j+1]
 				j++

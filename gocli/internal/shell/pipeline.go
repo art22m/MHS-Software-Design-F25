@@ -40,14 +40,8 @@ func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCod
 	}()
 
 	for _, desc := range pipeline {
-		substitutedArgs := make([]string, 0, len(desc.arguments))
-		for i, arg := range desc.arguments {
-			if desc.singleQuotedArgs != nil && desc.singleQuotedArgs[i] {
-				substitutedArgs = append(substitutedArgs, arg)
-				continue
-			}
-
-			substituted := varDollar.ReplaceAllStringFunc(arg, func(match string) string {
+		expandVar := func(s string) string {
+			return varDollar.ReplaceAllStringFunc(s, func(match string) string {
 				if strings.HasPrefix(match, "${") && strings.HasSuffix(match, "}") {
 					key := match[2 : len(match)-1]
 					if v, ok := p.env.Get(key); ok {
@@ -59,12 +53,26 @@ func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCod
 						return v
 					}
 				}
-				return "" // unset variables become empty string
+				return ""
 			})
+		}
+
+		substitutedArgs := make([]string, 0, len(desc.arguments))
+		for i, arg := range desc.arguments {
+			if desc.singleQuotedArgs != nil && desc.singleQuotedArgs[i] {
+				substitutedArgs = append(substitutedArgs, arg)
+				continue
+			}
+
+			substituted := expandVar(arg)
 			substitutedArgs = append(substitutedArgs, substituted)
 		}
 
-		desc.arguments = substitutedArgs // update the args to substituted ones
+		desc.arguments = substitutedArgs
+
+		if desc.name != EnvAssignmentCmd && len(substitutedArgs) > 0 {
+			desc.name = CommandName(substitutedArgs[0])
+		}
 
 		cmd, err := p.factory.GetCommand(desc)
 		if err != nil || cmd == nil {
