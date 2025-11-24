@@ -315,7 +315,9 @@ func TestPipelineRunner_Execute_EchoToWc(t *testing.T) {
 
 	tmpfile, err := os.CreateTemp("", t.Name())
 	require.NoError(t, err)
-	defer os.Remove(tmpfile.Name())
+	defer func(name string) {
+		require.NoError(t, os.Remove(name))
+	}(tmpfile.Name())
 
 	processor := NewInputProcessor()
 	descriptions, err := processor.Parse(`echo "1234" | wc > ` + tmpfile.Name())
