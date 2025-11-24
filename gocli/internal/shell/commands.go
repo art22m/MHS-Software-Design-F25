@@ -50,8 +50,6 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 			filePath = d.arguments[1]
 		} else if d.fileInPath != "" {
 			filePath = d.fileInPath
-		} else {
-			return nil, fmt.Errorf("wc: missing file argument")
 		}
 		return &wcCommand{
 			filePath: filePath,
@@ -157,26 +155,41 @@ type wcCommand struct {
 }
 
 func (w *wcCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
-	file, err := os.Open(w.filePath)
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "wc: %v\n", err)
-		return 1, false
+	var source *os.File
+	var shouldClose bool
+	var bytes int64
+	var displayName string
+
+	if w.filePath != "" {
+		file, err := os.Open(w.filePath)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "wc: %v\n", err)
+			return 1, false
+		}
+		source = file
+		shouldClose = true
+		displayName = w.filePath
+
+		fileInfo, err := file.Stat()
+		if err != nil {
+			_ = file.Close()
+			_, _ = fmt.Fprintf(os.Stderr, "wc: %v\n", err)
+			return 1, false
+		}
+		bytes = fileInfo.Size()
+	} else {
+		source = in
+		shouldClose = false
+		displayName = ""
 	}
-	defer func(file *os.File) {
-		_ = file.Close()
-	}(file)
 
-	fileInfo, err := file.Stat()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "wc: %v\n", err)
-		return 1, false
+	if shouldClose {
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(source)
 	}
 
-	bytes := fileInfo.Size()
-
-	_, _ = file.Seek(0, 0)
-	scanner := bufio.NewScanner(file)
-
+	scanner := bufio.NewScanner(source)
 	lines := 0
 	words := 0
 
@@ -186,6 +199,9 @@ func (w *wcCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool
 		if line != "" {
 			words += len(strings.Fields(line))
 		}
+		if w.filePath == "" {
+			bytes += int64(len(scanner.Bytes()) + 1)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -193,7 +209,11 @@ func (w *wcCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool
 		return 1, false
 	}
 
-	_, _ = fmt.Fprintf(out, "%d %d %d %s\n", lines, words, bytes, w.filePath)
+	if displayName != "" {
+		_, _ = fmt.Fprintf(out, "%d %d %d %s\n", lines, words, bytes, displayName)
+	} else {
+		_, _ = fmt.Fprintf(out, "%d %d %d\n", lines, words, bytes)
+	}
 
 	return 0, false
 }
