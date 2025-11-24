@@ -170,6 +170,6 @@ func TestInputProcessor_Parse_SubstitutionInArgs(t *testing.T) {
 	require.Len(t, descriptions, 1)
 
 	desc := descriptions[0]
-	expected := []string{"echo", `"hello"`}
+	expected := []string{"echo", `hello`}
 	assert.Equal(t, expected, desc.arguments)
 }

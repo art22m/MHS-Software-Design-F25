@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +23,78 @@ func TestPipelineRunner_Execute_SimplePipe(t *testing.T) {
 	retCode, exited := runner.Execute(descriptions, env)
 	assert.Equal(t, 0, retCode)
 	assert.False(t, exited)
+}
+
+func TestPipelineRunner_Execute_WithSubstitutions(t *testing.T) {
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+	runner := NewPipelineRunner(env, factory)
+	env.Set("var", "x")
+
+	tmpfile, err := os.CreateTemp("", t.Name())
+	require.NoError(t, err)
+
+	processor := NewInputProcessor()
+	descriptions, err := processor.Parse("echo $var > " + tmpfile.Name())
+	require.NoError(t, err)
+
+	retCode, exited := runner.Execute(descriptions, env)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	rawContent, err := io.ReadAll(tmpfile)
+	require.NoError(t, err)
+
+	content := strings.TrimRight(string(rawContent), "\n")
+	assert.Equal(t, "x", content)
+}
+
+func TestPipelineRunner_Execute_WithSubstitutionsSingleQuoted(t *testing.T) {
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+	runner := NewPipelineRunner(env, factory)
+	env.Set("var", "x")
+
+	tmpfile, err := os.CreateTemp("", t.Name())
+	require.NoError(t, err)
+
+	processor := NewInputProcessor()
+	descriptions, err := processor.Parse("echo '$var' > " + tmpfile.Name())
+	require.NoError(t, err)
+
+	retCode, exited := runner.Execute(descriptions, env)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	rawContent, err := io.ReadAll(tmpfile)
+	require.NoError(t, err)
+
+	content := strings.TrimRight(string(rawContent), "\n")
+	assert.Equal(t, "$var", content)
+}
+
+func TestPipelineRunner_Execute_WithSubstitutionsDoubleQuoted(t *testing.T) {
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+	runner := NewPipelineRunner(env, factory)
+	env.Set("var", "x")
+
+	tmpfile, err := os.CreateTemp("", t.Name())
+	require.NoError(t, err)
+
+	processor := NewInputProcessor()
+	descriptions, err := processor.Parse(`echo "$var" > ` + tmpfile.Name())
+	require.NoError(t, err)
+
+	retCode, exited := runner.Execute(descriptions, env)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	rawContent, err := io.ReadAll(tmpfile)
+	require.NoError(t, err)
+
+	content := strings.TrimRight(string(rawContent), "\n")
+	assert.Equal(t, `$var`, content)
 }
 
 func TestPipelineRunner_Execute_MultiplePipes(t *testing.T) {

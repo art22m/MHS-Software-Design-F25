@@ -74,7 +74,9 @@ func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCod
 	for i, desc := range pipeline {
 		substitutedArgs := make([]string, 0, len(desc.arguments))
 		for argIndex, arg := range desc.arguments {
-			if desc.singleQuotedArgs != nil && desc.singleQuotedArgs[argIndex] {
+			// Skip substitution only for single quoted args (like bash)
+			shouldSkip := (desc.singleQuotedArgs != nil && desc.singleQuotedArgs[argIndex]) || (desc.doubleQuotedArgs != nil && desc.doubleQuotedArgs[argIndex])
+			if shouldSkip {
 				substitutedArgs = append(substitutedArgs, arg)
 				continue
 			}

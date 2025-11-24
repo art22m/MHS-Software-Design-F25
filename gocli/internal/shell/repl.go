@@ -33,6 +33,7 @@ type CommandDescription struct {
 	fileOutPath      string
 	isPiped          bool
 	singleQuotedArgs map[int]bool
+	doubleQuotedArgs map[int]bool
 }
 
 // Env provides an interface for managing environment variables.

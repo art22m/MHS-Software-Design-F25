@@ -11,14 +11,15 @@ func NewInputProcessor() InputProcessor {
 type inputProcessor struct {
 }
 
-func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
+func tokenizeWithQuotes(input string) ([]string, map[int]bool, map[int]bool) {
 	var tokens []string
 	singleQuoted := make(map[int]bool)
+	doubleQuoted := make(map[int]bool)
 	var current strings.Builder
 	inSingleQuote := false
 	inDoubleQuote := false
 	tokenStartedInSingle := false
-	doubleQuoteStart := -1
+	tokenStartedInDouble := false
 
 	for i := 0; i < len(input); i++ {
 		char := input[i]
@@ -38,16 +39,11 @@ func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
 		if char == '"' && !inSingleQuote {
 			if inDoubleQuote {
 				inDoubleQuote = false
-				// When closing double quote, we want to preserve the quotes for substitution
-				if doubleQuoteStart >= 0 {
-					quotedContent := input[doubleQuoteStart : i+1]
-					current.Reset()
-					current.WriteString(quotedContent)
-					doubleQuoteStart = -1
-				}
 			} else {
 				inDoubleQuote = true
-				doubleQuoteStart = i
+				if current.Len() == 0 {
+					tokenStartedInDouble = true
+				}
 			}
 			continue
 		}
@@ -59,16 +55,17 @@ func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
 				if tokenStartedInSingle && !inSingleQuote {
 					singleQuoted[idx] = true
 				}
+				if tokenStartedInDouble && !inDoubleQuote {
+					doubleQuoted[idx] = true
+				}
 				current.Reset()
 				tokenStartedInSingle = false
+				tokenStartedInDouble = false
 			}
 			continue
 		}
 
-		// Only add character to current token if we're not at the start of a double-quoted string
-		if !(inDoubleQuote && doubleQuoteStart == i) {
-			current.WriteByte(char)
-		}
+		current.WriteByte(char)
 	}
 
 	if current.Len() > 0 {
@@ -77,9 +74,12 @@ func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
 		if tokenStartedInSingle && !inSingleQuote {
 			singleQuoted[idx] = true
 		}
+		if tokenStartedInDouble && !inDoubleQuote {
+			doubleQuoted[idx] = true
+		}
 	}
 
-	return tokens, singleQuoted
+	return tokens, singleQuoted, doubleQuoted
 }
 
 // Parse implements InputProcessor interface.
@@ -114,7 +114,7 @@ func (i *inputProcessor) parsePipeline(input string) []CommandDescription {
 		}
 
 		// Use proper tokenization with quote handling
-		tokens, _ := tokenizeWithQuotes(part)
+		tokens, singleQuotedTokens, doubleQuotedTokens := tokenizeWithQuotes(part)
 		if len(tokens) == 0 {
 			continue
 		}
@@ -123,7 +123,7 @@ func (i *inputProcessor) parsePipeline(input string) []CommandDescription {
 		var assignments []CommandDescription
 		cmdStartIdx := 0
 
-		for i := 0; i < len(tokens); i++ {
+		for i := range tokens {
 			if strings.Contains(tokens[i], "=") &&
 				!strings.HasPrefix(tokens[i], "=") && !strings.HasSuffix(tokens[i], "=") &&
 				tokens[i] != "<" && tokens[i] != ">" {
@@ -155,6 +155,10 @@ func (i *inputProcessor) parsePipeline(input string) []CommandDescription {
 		// Handle I/O redirection and command arguments
 		var inFile, outFile string
 		newArgs := []string{}
+		singleQuotedArgs := make(map[int]bool)
+		doubleQuotedArgs := make(map[int]bool)
+		argIdx := 0
+
 		for j := cmdStartIdx; j < len(tokens); j++ {
 			if tokens[j] == "<" && j+1 < len(tokens) {
 				inFile = tokens[j+1]
@@ -164,6 +168,14 @@ func (i *inputProcessor) parsePipeline(input string) []CommandDescription {
 				j++
 			} else {
 				newArgs = append(newArgs, tokens[j])
+				// Track which arguments are quoted
+				if singleQuotedTokens[j] {
+					singleQuotedArgs[argIdx] = true
+				}
+				if doubleQuotedTokens[j] {
+					doubleQuotedArgs[argIdx] = true
+				}
+				argIdx++
 			}
 		}
 
@@ -174,11 +186,13 @@ func (i *inputProcessor) parsePipeline(input string) []CommandDescription {
 		cmdName := CommandName(newArgs[0])
 
 		descriptions = append(descriptions, CommandDescription{
-			name:        cmdName,
-			arguments:   newArgs,
-			fileInPath:  inFile,
-			fileOutPath: outFile,
-			isPiped:     cmdIndex < len(parts)-1, // Only set isPiped for non-last commands
+			name:             cmdName,
+			arguments:        newArgs,
+			fileInPath:       inFile,
+			fileOutPath:      outFile,
+			isPiped:          cmdIndex < len(parts)-1, // Only set isPiped for non-last commands
+			singleQuotedArgs: singleQuotedArgs,
+			doubleQuotedArgs: doubleQuotedArgs,
 		})
 	}
 
