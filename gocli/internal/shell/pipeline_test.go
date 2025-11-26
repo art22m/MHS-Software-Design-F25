@@ -307,3 +307,31 @@ func TestPipelineRunner_Execute_UnknownCommandInPipe(t *testing.T) {
 	assert.NotEqual(t, 0, retCode)
 	assert.False(t, exited)
 }
+
+func TestPipelineRunner_Execute_EchoToWc(t *testing.T) {
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+	runner := NewPipelineRunner(env, factory)
+
+	tmpfile, err := os.CreateTemp("", t.Name())
+	require.NoError(t, err)
+	defer func(name string) {
+		require.NoError(t, os.Remove(name))
+	}(tmpfile.Name())
+
+	processor := NewInputProcessor()
+	descriptions, err := processor.Parse(`echo "1234" | wc > ` + tmpfile.Name())
+	require.NoError(t, err)
+
+	retCode, exited := runner.Execute(descriptions, env)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	output, err := os.ReadFile(tmpfile.Name())
+	require.NoError(t, err)
+
+	outputFields := strings.Fields(strings.TrimSpace(string(output)))
+	require.Len(t, outputFields, 3)
+	assert.Equal(t, "1", outputFields[0])
+	assert.Equal(t, "1", outputFields[1])
+}
