@@ -22,6 +22,8 @@ const (
 	EchoCommand = CommandName("echo")
 	// WCCommand counts lines, words, and bytes in a file.
 	WCCommand = CommandName("wc")
+	// GrepCommand searches for patterns in files using regular expressions.
+	GrepCommand = CommandName("grep")
 )
 
 // CommandDescription contains all information needed to execute a command,

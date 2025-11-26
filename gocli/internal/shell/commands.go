@@ -2,10 +2,12 @@ package shell
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -54,6 +56,8 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 		return &wcCommand{
 			filePath: filePath,
 		}, nil
+	case GrepCommand:
+		return parseGrepCommand(d)
 	default:
 		return &externalCommand{
 			args:        d.arguments,
@@ -70,6 +74,7 @@ var (
 	_ Command = (*catCommand)(nil)
 	_ Command = (*echoCommand)(nil)
 	_ Command = (*wcCommand)(nil)
+	_ Command = (*grepCommand)(nil)
 	_ Command = (*externalCommand)(nil)
 )
 
@@ -213,6 +218,127 @@ func (w *wcCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool
 		_, _ = fmt.Fprintf(out, "%d %d %d %s\n", lines, words, bytes, displayName)
 	} else {
 		_, _ = fmt.Fprintf(out, "%d %d %d\n", lines, words, bytes)
+	}
+
+	return 0, false
+}
+
+type grepCommand struct {
+	pattern         string
+	filePath        string
+	wholeWord       bool
+	caseInsensitive bool
+	afterLines      int
+}
+
+func parseGrepCommand(d CommandDescription) (Command, error) {
+	fs := flag.NewFlagSet("grep", flag.ContinueOnError)
+	wholeWord := fs.Bool("w", false, "match whole word")
+	caseInsensitive := fs.Bool("i", false, "case-insensitive search")
+	afterLines := fs.Int("A", 0, "print N lines after match")
+
+	args := d.arguments[1:]
+	if err := fs.Parse(args); err != nil {
+		return nil, fmt.Errorf("grep: %w", err)
+	}
+
+	nonFlagArgs := fs.Args()
+	if len(nonFlagArgs) == 0 {
+		return nil, fmt.Errorf("grep: pattern required")
+	}
+
+	pattern := nonFlagArgs[0]
+	var filePath string
+	if len(nonFlagArgs) >= 2 {
+		filePath = nonFlagArgs[1]
+	} else if d.fileInPath != "" {
+		filePath = d.fileInPath
+	}
+
+	return &grepCommand{
+		pattern:         pattern,
+		filePath:        filePath,
+		wholeWord:       *wholeWord,
+		caseInsensitive: *caseInsensitive,
+		afterLines:      *afterLines,
+	}, nil
+}
+
+func (g *grepCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
+	pattern := g.pattern
+
+	var regexFlags string
+	if g.caseInsensitive {
+		regexFlags = "(?i)"
+	}
+
+	if g.wholeWord {
+		quotedPattern := regexp.QuoteMeta(pattern)
+		pattern = `\b` + quotedPattern + `\b`
+	}
+
+	re, err := regexp.Compile(regexFlags + pattern)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "grep: invalid pattern: %v\n", err)
+		return 1, false
+	}
+
+	var source *os.File
+	var shouldClose bool
+
+	if g.filePath != "" {
+		file, err := os.Open(g.filePath)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "grep: %v\n", err)
+			return 1, false
+		}
+		source = file
+		shouldClose = true
+	} else {
+		source = in
+		shouldClose = false
+	}
+
+	if shouldClose {
+		defer func(file *os.File) {
+			_ = file.Close()
+		}(source)
+	}
+
+	scanner := bufio.NewScanner(source)
+	var lines []string
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "grep: %v\n", err)
+		return 1, false
+	}
+
+	printed := make(map[int]bool)
+	matched := false
+
+	for i, line := range lines {
+		if re.MatchString(line) {
+			matched = true
+			start := i
+			end := i + g.afterLines
+			if end >= len(lines) {
+				end = len(lines) - 1
+			}
+
+			for j := start; j <= end; j++ {
+				if !printed[j] {
+					_, _ = fmt.Fprintln(out, lines[j])
+					printed[j] = true
+				}
+			}
+		}
+	}
+
+	if !matched {
+		return 1, false
 	}
 
 	return 0, false
