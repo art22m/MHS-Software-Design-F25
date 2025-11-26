@@ -19,7 +19,10 @@
 
 ### Как запустить
 
-TODO
+```shell
+go build -o shell cmd/main.go 	# компиляция
+./shell				# запуск
+```
 
 
 ### Архитектура
