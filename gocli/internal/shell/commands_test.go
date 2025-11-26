@@ -120,34 +120,6 @@ func TestWcCommand_Execute_NonexistentFile(t *testing.T) {
 	assert.False(t, exited)
 }
 
-func TestWcCommand_Execute_FromStdin(t *testing.T) {
-	cmd := &wcCommand{filePath: ""}
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-
-	testInput := "line one\nline two\n"
-	_, err = w.WriteString(testInput)
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
-
-	outputR, outputW, err := os.Pipe()
-	require.NoError(t, err)
-
-	retCode, exited := cmd.Execute(r, outputW, nil)
-	assert.NoError(t, outputW.Close())
-
-	assert.Equal(t, 0, retCode)
-	assert.False(t, exited)
-
-	buf := make([]byte, 1024)
-	n, _ := outputR.Read(buf)
-	output := strings.Fields(string(buf[:n]))
-
-	require.Len(t, output, 3)
-	assert.Equal(t, "2", output[0])
-	assert.Equal(t, "4", output[1])
-}
-
 func TestCommandFactory_GetCommand(t *testing.T) {
 	env := NewEnv()
 	factory := NewCommandFactory(env)
@@ -208,12 +180,12 @@ func TestCommandFactory_GetCommand(t *testing.T) {
 			},
 		},
 		{
-			name: "wc without file (reads from stdin)",
+			name: "wc missing file",
 			desc: CommandDescription{
 				name:      WCCommand,
 				arguments: []string{"wc"},
 			},
-			wantError: false,
+			wantError: true,
 		},
 		{
 			name: "external command",
