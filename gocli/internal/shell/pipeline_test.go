@@ -335,3 +335,85 @@ func TestPipelineRunner_Execute_EchoToWc(t *testing.T) {
 	assert.Equal(t, "1", outputFields[0])
 	assert.Equal(t, "1", outputFields[1])
 }
+
+func TestPipelineRunner_Execute_EchoToGrep(t *testing.T) {
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+	runner := NewPipelineRunner(env, factory)
+
+	tmpfile, err := os.CreateTemp("", t.Name())
+	require.NoError(t, err)
+	defer func(name string) {
+		require.NoError(t, os.Remove(name))
+	}(tmpfile.Name())
+
+	processor := NewInputProcessor()
+	descriptions, err := processor.Parse(`printf "line one\nline two\nline three\n" | grep "two" > ` + tmpfile.Name())
+	require.NoError(t, err)
+
+	retCode, exited := runner.Execute(descriptions, env)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	output, err := os.ReadFile(tmpfile.Name())
+	require.NoError(t, err)
+
+	outputStr := strings.TrimSpace(string(output))
+	assert.Equal(t, "line two", outputStr)
+}
+
+func TestPipelineRunner_Execute_CatToGrep(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "input.txt")
+	content := "first line\nsecond line\nthird line\n"
+	err := os.WriteFile(testFile, []byte(content), 0644)
+	require.NoError(t, err)
+
+	outputFile := filepath.Join(tmpDir, "output.txt")
+
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+	runner := NewPipelineRunner(env, factory)
+
+	processor := NewInputProcessor()
+	descriptions, err := processor.Parse("cat " + testFile + " | grep \"second\" > " + outputFile)
+	require.NoError(t, err)
+
+	retCode, exited := runner.Execute(descriptions, env)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	output, err := os.ReadFile(outputFile)
+	require.NoError(t, err)
+
+	outputStr := strings.TrimSpace(string(output))
+	assert.Equal(t, "second line", outputStr)
+}
+
+func TestPipelineRunner_Execute_GrepWithFlagsInPipe(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "input.txt")
+	content := "Line One\nLine Two\nLine Three\n"
+	err := os.WriteFile(testFile, []byte(content), 0644)
+	require.NoError(t, err)
+
+	outputFile := filepath.Join(tmpDir, "output.txt")
+
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+	runner := NewPipelineRunner(env, factory)
+
+	processor := NewInputProcessor()
+	descriptions, err := processor.Parse("cat " + testFile + " | grep -i \"two\" > " + outputFile)
+	require.NoError(t, err)
+
+	retCode, exited := runner.Execute(descriptions, env)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	output, err := os.ReadFile(outputFile)
+	require.NoError(t, err)
+
+	outputStr := strings.TrimSpace(string(output))
+	assert.Equal(t, "Line Two", outputStr)
+}
