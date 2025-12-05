@@ -11,13 +11,15 @@ func NewInputProcessor() InputProcessor {
 type inputProcessor struct {
 }
 
-func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
+func tokenizeWithQuotes(input string) ([]string, map[int]bool, map[int]bool) {
 	var tokens []string
 	singleQuoted := make(map[int]bool)
+	doubleQuoted := make(map[int]bool)
 	var current strings.Builder
 	inSingleQuote := false
 	inDoubleQuote := false
 	tokenStartedInSingle := false
+	tokenStartedInDouble := false
 
 	for i := 0; i < len(input); i++ {
 		char := input[i]
@@ -39,6 +41,9 @@ func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
 				inDoubleQuote = false
 			} else {
 				inDoubleQuote = true
+				if current.Len() == 0 {
+					tokenStartedInDouble = true
+				}
 			}
 			continue
 		}
@@ -50,8 +55,12 @@ func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
 				if tokenStartedInSingle && !inSingleQuote {
 					singleQuoted[idx] = true
 				}
+				if tokenStartedInDouble && !inDoubleQuote {
+					doubleQuoted[idx] = true
+				}
 				current.Reset()
 				tokenStartedInSingle = false
+				tokenStartedInDouble = false
 			}
 			continue
 		}
@@ -65,14 +74,18 @@ func tokenizeWithQuotes(input string) ([]string, map[int]bool) {
 		if tokenStartedInSingle && !inSingleQuote {
 			singleQuoted[idx] = true
 		}
+		if tokenStartedInDouble && !inDoubleQuote {
+			doubleQuoted[idx] = true
+		}
 	}
 
-	return tokens, singleQuoted
+	return tokens, singleQuoted, doubleQuoted
 }
 
 // Parse implements InputProcessor interface.
 // Parses the input string into a list of CommandDescriptions by splitting on semicolons,
-// handling variable assignments, and processing I/O redirection operators (< and >).
+// handling variable assignments, processing I/O redirection operators (< and >),
+// and detecting pipe operators (|).
 func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 	rawCommands := strings.Split(input, ";")
 	descriptions := []CommandDescription{}
@@ -83,15 +96,34 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 			continue
 		}
 
-		tokens, singleQuotedTokens := tokenizeWithQuotes(rawCmd)
+		pipedCommands := i.parsePipeline(rawCmd)
+		descriptions = append(descriptions, pipedCommands...)
+	}
+
+	return descriptions, nil
+}
+
+func (i *inputProcessor) parsePipeline(input string) []CommandDescription {
+	parts := strings.Split(input, "|")
+	descriptions := []CommandDescription{}
+
+	for cmdIndex, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// Use proper tokenization with quote handling
+		tokens, singleQuotedTokens, doubleQuotedTokens := tokenizeWithQuotes(part)
 		if len(tokens) == 0 {
 			continue
 		}
 
+		// Handle environment variable assignments
 		var assignments []CommandDescription
 		cmdStartIdx := 0
 
-		for i := 0; i < len(tokens); i++ {
+		for i := range tokens {
 			if strings.Contains(tokens[i], "=") &&
 				!strings.HasPrefix(tokens[i], "=") && !strings.HasSuffix(tokens[i], "=") &&
 				tokens[i] != "<" && tokens[i] != ">" {
@@ -100,6 +132,7 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 					assignments = append(assignments, CommandDescription{
 						name:      EnvAssignmentCmd,
 						arguments: []string{parts[0], parts[1]},
+						isPiped:   len(parts) > 1,
 					})
 					cmdStartIdx = i + 1
 					continue
@@ -119,10 +152,13 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 			continue
 		}
 
+		// Handle I/O redirection and command arguments
 		var inFile, outFile string
 		newArgs := []string{}
 		singleQuotedArgs := make(map[int]bool)
+		doubleQuotedArgs := make(map[int]bool)
 		argIdx := 0
+
 		for j := cmdStartIdx; j < len(tokens); j++ {
 			if tokens[j] == "<" && j+1 < len(tokens) {
 				inFile = tokens[j+1]
@@ -132,8 +168,12 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 				j++
 			} else {
 				newArgs = append(newArgs, tokens[j])
+				// Track which arguments are quoted
 				if singleQuotedTokens[j] {
 					singleQuotedArgs[argIdx] = true
+				}
+				if doubleQuotedTokens[j] {
+					doubleQuotedArgs[argIdx] = true
 				}
 				argIdx++
 			}
@@ -144,17 +184,17 @@ func (i *inputProcessor) Parse(input string) ([]CommandDescription, error) {
 		}
 
 		cmdName := CommandName(newArgs[0])
-		args := newArgs[:]
 
 		descriptions = append(descriptions, CommandDescription{
 			name:             cmdName,
-			arguments:        args,
+			arguments:        newArgs,
 			fileInPath:       inFile,
 			fileOutPath:      outFile,
-			isPiped:          false,
+			isPiped:          cmdIndex < len(parts)-1, // Only set isPiped for non-last commands
 			singleQuotedArgs: singleQuotedArgs,
+			doubleQuotedArgs: doubleQuotedArgs,
 		})
 	}
 
-	return descriptions, nil
+	return descriptions
 }

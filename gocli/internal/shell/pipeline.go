@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -26,12 +25,31 @@ type pipelineRunner struct {
 
 var varDollar = regexp.MustCompile(`\$(\w+)|\$\{([^}]+)\}`)
 
+func (p *pipelineRunner) expandVar(s string) string {
+	return varDollar.ReplaceAllStringFunc(s, func(match string) string {
+		var key string
+		if strings.HasPrefix(match, "${") && strings.HasSuffix(match, "}") {
+			key = match[2 : len(match)-1]
+		} else if strings.HasPrefix(match, "$") {
+			key = match[1:]
+		}
+
+		if v, ok := p.env.Get(key); ok {
+			return v
+		}
+		return match // Return original if not found
+	})
+}
+
 // Execute implements PipelineRunner interface.
 // Processes and executes a sequence of commands in the pipeline, handling environment
-// variable substitution, I/O redirection, and command execution.
+// variable substitution, I/O redirection, pipe creation, and command execution.
 // Returns the exit code of the last command and a boolean indicating whether to exit the shell.
 func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCode int, exited bool) {
-	// handle opened descriptors if are any
+	if len(pipeline) == 0 {
+		return 0, false
+	}
+
 	toClose := make([]*os.File, 0)
 	defer func() {
 		for _, f := range toClose {
@@ -39,44 +57,50 @@ func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCod
 		}
 	}()
 
-	for _, desc := range pipeline {
-		expandVar := func(s string) string {
-			return varDollar.ReplaceAllStringFunc(s, func(match string) string {
-				if strings.HasPrefix(match, "${") && strings.HasSuffix(match, "}") {
-					key := match[2 : len(match)-1]
-					if v, ok := p.env.Get(key); ok {
-						return v
-					}
-				} else if strings.HasPrefix(match, "$") {
-					key := match[1:]
-					if v, ok := p.env.Get(key); ok {
-						return v
-					}
-				}
-				return ""
-			})
-		}
+	pipeReads := make([]*os.File, len(pipeline))
+	pipeWrites := make([]*os.File, len(pipeline))
 
+	// Create pipes between consecutive commands in pipeline
+	for i := 0; i < len(pipeline)-1; i++ {
+		r, w, err := os.Pipe()
+		if err != nil {
+			return -1, false
+		}
+		pipeWrites[i] = w
+		pipeReads[i+1] = r
+		toClose = append(toClose, r, w)
+	}
+
+	for i, desc := range pipeline {
 		substitutedArgs := make([]string, 0, len(desc.arguments))
-		for i, arg := range desc.arguments {
-			if desc.singleQuotedArgs != nil && desc.singleQuotedArgs[i] {
+		for argIndex, arg := range desc.arguments {
+			// Skip substitution only for single quoted args (like bash)
+			if desc.singleQuotedArgs != nil && desc.singleQuotedArgs[argIndex] {
 				substitutedArgs = append(substitutedArgs, arg)
 				continue
 			}
 
-			substituted := expandVar(arg)
+			substituted := p.expandVar(arg)
 			substitutedArgs = append(substitutedArgs, substituted)
 		}
-
 		desc.arguments = substitutedArgs
 
-		if desc.name != EnvAssignmentCmd && len(substitutedArgs) > 0 {
-			desc.name = CommandName(substitutedArgs[0])
+		if desc.name == ExitCommand {
+			isLastCommand := i == len(pipeline)-1
+			if !isLastCommand {
+				if pipeWrites[i] != nil {
+					_ = pipeWrites[i].Close()
+				}
+				continue
+			}
 		}
 
 		cmd, err := p.factory.GetCommand(desc)
 		if err != nil || cmd == nil {
-			return 127, false // similar to unix-like shells not found
+			if pipeWrites[i] != nil {
+				_ = pipeWrites[i].Close()
+			}
+			return 127, false
 		}
 
 		var (
@@ -85,28 +109,50 @@ func (p *pipelineRunner) Execute(pipeline []CommandDescription, env Env) (retCod
 		)
 
 		if desc.fileInPath != "" {
-			inDescriptor, err = os.Open(desc.fileInPath)
+			file, err := os.Open(desc.fileInPath)
 			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "error opening input file: %v\n", err)
-				return 1, false
+				if pipeWrites[i] != nil {
+					_ = pipeWrites[i].Close()
+				}
+				return -1, false
 			}
-			toClose = append(toClose, inDescriptor)
+			inDescriptor = file
+			toClose = append(toClose, file)
+		} else if pipeReads[i] != nil {
+			inDescriptor = pipeReads[i]
 		}
 
 		if desc.fileOutPath != "" {
-			outDescriptor, err = os.Create(desc.fileOutPath)
+			file, err := os.Create(desc.fileOutPath)
 			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "error creating output file: %v\n", err)
-				return 1, false
+				if pipeWrites[i] != nil {
+					_ = pipeWrites[i].Close()
+				}
+				return -1, false
 			}
-			toClose = append(toClose, outDescriptor)
+			outDescriptor = file
+			toClose = append(toClose, file)
+		} else if pipeWrites[i] != nil {
+			outDescriptor = pipeWrites[i]
 		}
 
 		code, shouldExit := cmd.Execute(inDescriptor, outDescriptor, env)
-		if shouldExit {
-			return code, true
+
+		if pipeWrites[i] != nil && outDescriptor == pipeWrites[i] {
+			_ = pipeWrites[i].Close()
 		}
-		retCode = code
+
+		if shouldExit {
+			isLastCommand := i == len(pipeline)-1
+			if isLastCommand {
+				return code, true
+			}
+		}
+
+		if i == len(pipeline)-1 {
+			retCode = code
+		}
 	}
+
 	return retCode, false
 }

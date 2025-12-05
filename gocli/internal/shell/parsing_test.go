@@ -99,3 +99,77 @@ func TestInputProcessor_Parse_MultipleArgs(t *testing.T) {
 	expected := []string{"echo", "hello", "world", "test"}
 	assert.Equal(t, expected, desc.arguments)
 }
+
+func TestInputProcessor_Parse_SimplePipe(t *testing.T) {
+	processor := NewInputProcessor()
+
+	descriptions, err := processor.Parse("echo hello | cat")
+	require.NoError(t, err)
+	require.Len(t, descriptions, 2)
+
+	desc1 := descriptions[0]
+	assert.Equal(t, EchoCommand, desc1.name)
+
+	desc2 := descriptions[1]
+	assert.Equal(t, CatCommand, desc2.name)
+}
+
+func TestInputProcessor_Parse_MultiplePipes(t *testing.T) {
+	processor := NewInputProcessor()
+
+	descriptions, err := processor.Parse("echo hello | cat | wc file.txt")
+	require.NoError(t, err)
+	require.Len(t, descriptions, 3)
+
+	desc1 := descriptions[0]
+	assert.Equal(t, EchoCommand, desc1.name)
+
+	desc2 := descriptions[1]
+	assert.Equal(t, CatCommand, desc2.name)
+
+	desc3 := descriptions[2]
+	assert.Equal(t, WCCommand, desc3.name)
+}
+
+func TestInputProcessor_Parse_PipeWithSemicolon(t *testing.T) {
+	processor := NewInputProcessor()
+
+	descriptions, err := processor.Parse("echo hello | cat; pwd")
+	require.NoError(t, err)
+	require.Len(t, descriptions, 3)
+
+	desc1 := descriptions[0]
+	assert.Equal(t, EchoCommand, desc1.name)
+
+	desc2 := descriptions[1]
+	assert.Equal(t, CatCommand, desc2.name)
+
+	desc3 := descriptions[2]
+	assert.Equal(t, PWDCommand, desc3.name)
+}
+
+func TestInputProcessor_Parse_PipeWithRedirection(t *testing.T) {
+	processor := NewInputProcessor()
+
+	descriptions, err := processor.Parse("echo hello > file.txt | cat")
+	require.NoError(t, err)
+	require.Len(t, descriptions, 2)
+
+	desc1 := descriptions[0]
+	assert.Equal(t, "file.txt", desc1.fileOutPath)
+
+	desc2 := descriptions[1]
+	assert.Equal(t, CatCommand, desc2.name)
+}
+
+func TestInputProcessor_Parse_SubstitutionInArgs(t *testing.T) {
+	processor := NewInputProcessor()
+
+	descriptions, err := processor.Parse(`echo "hello"`)
+	require.NoError(t, err)
+	require.Len(t, descriptions, 1)
+
+	desc := descriptions[0]
+	expected := []string{"echo", `hello`}
+	assert.Equal(t, expected, desc.arguments)
+}
