@@ -58,6 +58,14 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 		}, nil
 	case GrepCommand:
 		return parseGrepCommand(d)
+	case CDCommand:
+		var targetDir string
+		if len(d.arguments) >= 2 {
+			targetDir = d.arguments[1]
+		}
+		return &cdCommand{
+			targetDir: targetDir,
+		}, nil
 	default:
 		return &externalCommand{
 			args:        d.arguments,
@@ -75,6 +83,8 @@ var (
 	_ Command = (*echoCommand)(nil)
 	_ Command = (*wcCommand)(nil)
 	_ Command = (*grepCommand)(nil)
+	_ Command = (*cdCommand)(nil)
+	_ Command = (*lsCommand)(nil)
 	_ Command = (*externalCommand)(nil)
 )
 
@@ -338,6 +348,38 @@ func (g *grepCommand) Execute(in, out *os.File, env Env) (retCode int, exited bo
 	}
 
 	if !matched {
+		return 1, false
+	}
+
+	return 0, false
+}
+
+type cdCommand struct {
+	targetDir string
+}
+
+func (c *cdCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
+	var targetDir string
+	if c.targetDir == "" {
+		// If no argument, change to home directory
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			// Fallback to HOME environment variable
+			if home, ok := env.Get("HOME"); ok {
+				homeDir = home
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "cd: %v\n", err)
+				return 1, false
+			}
+		}
+		targetDir = homeDir
+	} else {
+		targetDir = c.targetDir
+	}
+
+	err := os.Chdir(targetDir)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "cd: %v\n", err)
 		return 1, false
 	}
 
