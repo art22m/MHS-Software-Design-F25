@@ -24,6 +24,10 @@ const (
 	WCCommand = CommandName("wc")
 	// GrepCommand searches for patterns in files using regular expressions.
 	GrepCommand = CommandName("grep")
+	// CDCommand changes the current working directory.
+	CDCommand = CommandName("cd")
+	// LSCommand lists directory contents.
+	LSCommand = CommandName("ls")
 )
 
 // CommandDescription contains all information needed to execute a command,

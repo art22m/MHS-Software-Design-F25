@@ -9,6 +9,8 @@
   - `-w` - поиск только целого слова
   - `-A N` - вывести N строк после совпадения
 - pwd - распечатать текущую директорию
+- cd [DIR] - изменить текущую рабочую директорию (без аргумента переходит в домашнюю директорию)
+- ls [DIR] - вывести список файлов и директорий (без аргумента выводит содержимое текущей директории)
 - exit - выйти из интерпретатора
 
 Дополнительно поддерживаются:
@@ -113,6 +115,8 @@ classDiagram
     class WcCommand
     class GrepCommand
     class PwdCommand
+    class CdCommand
+    class LsCommand
     class ExitCommand
     class ExternalCommand
     
@@ -122,6 +126,8 @@ classDiagram
     WcCommand --|> Command
     GrepCommand --|> Command
     PwdCommand --|> Command
+    CdCommand --|> Command
+    LsCommand --|> Command
     ExitCommand --|> Command
     ExternalCommand --|> Command
 

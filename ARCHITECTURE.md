@@ -20,7 +20,7 @@
 
 4. **Команда (Интерфейс)**
     - Определяет единый контракт для всех команд: `Execute(in, out *os.File, env Env) (retCode int, exited bool)`
-    - Включает реализации для команд `Cat`, `Echo`, `Wc`, `Pwd`, `Exit`, `EnvAssignment` и `ExternalCommand` для запуска внешних исполняемых файлов
+    - Включает реализации для команд `Cat`, `Echo`, `Wc`, `Pwd`, `Cd`, `Ls`, `Exit`, `EnvAssignment` и `ExternalCommand` для запуска внешних исполняемых файлов
 
 ### Модель данных команды
 ```go
@@ -114,6 +114,12 @@ classDiagram
         -filePath: string
     }
     class pwdCommand
+    class cdCommand {
+        -targetDir: string
+    }
+    class lsCommand {
+        -targetDir: string
+    }
     class exitCommand
     class externalCommand {
         -name: string
@@ -125,6 +131,8 @@ classDiagram
     echoCommand ..|> Command
     wcCommand ..|> Command
     pwdCommand ..|> Command
+    cdCommand ..|> Command
+    lsCommand ..|> Command
     exitCommand ..|> Command
     externalCommand ..|> Command
 

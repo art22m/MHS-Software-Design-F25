@@ -417,3 +417,69 @@ func TestPipelineRunner_Execute_GrepWithFlagsInPipe(t *testing.T) {
 	outputStr := strings.TrimSpace(string(output))
 	assert.Equal(t, "Line Two", outputStr)
 }
+
+func TestPipelineRunner_Execute_CdThenPwd(t *testing.T) {
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "subdir")
+	err := os.Mkdir(subDir, 0755)
+	require.NoError(t, err)
+
+	// Save current directory
+	originalDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	outputFile := filepath.Join(tmpDir, "output.txt")
+
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+	runner := NewPipelineRunner(env, factory)
+
+	processor := NewInputProcessor()
+	descriptions, err := processor.Parse("cd " + subDir + "; pwd > " + outputFile)
+	require.NoError(t, err)
+
+	retCode, exited := runner.Execute(descriptions, env)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	// Verify pwd output
+	output, err := os.ReadFile(outputFile)
+	require.NoError(t, err)
+	outputStr := strings.TrimSpace(string(output))
+	assert.Equal(t, subDir, outputStr)
+}
+
+func TestPipelineRunner_Execute_LsCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile1 := filepath.Join(tmpDir, "file1.txt")
+	testFile2 := filepath.Join(tmpDir, "file2.txt")
+	err := os.WriteFile(testFile1, []byte("content1"), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(testFile2, []byte("content2"), 0644)
+	require.NoError(t, err)
+
+	outputFile := filepath.Join(tmpDir, "output.txt")
+
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+	runner := NewPipelineRunner(env, factory)
+
+	processor := NewInputProcessor()
+	descriptions, err := processor.Parse("ls " + tmpDir + " > " + outputFile)
+	require.NoError(t, err)
+
+	retCode, exited := runner.Execute(descriptions, env)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	// Verify ls output
+	output, err := os.ReadFile(outputFile)
+	require.NoError(t, err)
+	outputStr := strings.TrimSpace(string(output))
+	lines := strings.Split(outputStr, "\n")
+	assert.Contains(t, lines, "file1.txt")
+	assert.Contains(t, lines, "file2.txt")
+}
