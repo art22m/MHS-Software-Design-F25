@@ -66,6 +66,14 @@ func (c *commandFactory) GetCommand(d CommandDescription) (Command, error) {
 		return &cdCommand{
 			targetDir: targetDir,
 		}, nil
+	case LSCommand:
+		var targetDir string
+		if len(d.arguments) >= 2 {
+			targetDir = d.arguments[1]
+		}
+		return &lsCommand{
+			targetDir: targetDir,
+		}, nil
 	default:
 		return &externalCommand{
 			args:        d.arguments,
@@ -381,6 +389,37 @@ func (c *cdCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "cd: %v\n", err)
 		return 1, false
+	}
+
+	return 0, false
+}
+
+type lsCommand struct {
+	targetDir string
+}
+
+func (l *lsCommand) Execute(in, out *os.File, env Env) (retCode int, exited bool) {
+	var targetDir string
+	if l.targetDir == "" {
+		// If no argument, list current directory
+		var err error
+		targetDir, err = os.Getwd()
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "ls: %v\n", err)
+			return 1, false
+		}
+	} else {
+		targetDir = l.targetDir
+	}
+
+	entries, err := os.ReadDir(targetDir)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "ls: %v\n", err)
+		return 1, false
+	}
+
+	for _, entry := range entries {
+		_, _ = fmt.Fprintln(out, entry.Name())
 	}
 
 	return 0, false
