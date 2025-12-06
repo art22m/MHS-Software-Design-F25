@@ -173,3 +173,31 @@ func TestInputProcessor_Parse_SubstitutionInArgs(t *testing.T) {
 	expected := []string{"echo", `hello`}
 	assert.Equal(t, expected, desc.arguments)
 }
+
+func TestInputProcessor_Parse_CdCommand(t *testing.T) {
+	processor := NewInputProcessor()
+
+	descriptions, err := processor.Parse("cd /tmp")
+	require.NoError(t, err)
+	require.Len(t, descriptions, 1)
+
+	desc := descriptions[0]
+	assert.Equal(t, CDCommand, desc.name)
+	assert.Len(t, desc.arguments, 2)
+	assert.Equal(t, "cd", desc.arguments[0])
+	assert.Equal(t, "/tmp", desc.arguments[1])
+}
+
+func TestInputProcessor_Parse_LsCommand(t *testing.T) {
+	processor := NewInputProcessor()
+
+	descriptions, err := processor.Parse("ls /tmp")
+	require.NoError(t, err)
+	require.Len(t, descriptions, 1)
+
+	desc := descriptions[0]
+	assert.Equal(t, LSCommand, desc.name)
+	assert.Len(t, desc.arguments, 2)
+	assert.Equal(t, "ls", desc.arguments[0])
+	assert.Equal(t, "/tmp", desc.arguments[1])
+}

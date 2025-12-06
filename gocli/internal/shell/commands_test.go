@@ -617,3 +617,228 @@ func TestGrepCommand_Parse_NoPattern(t *testing.T) {
 	_, err := parseGrepCommand(desc)
 	assert.Error(t, err)
 }
+
+func TestCdCommand_Execute_WithPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "subdir")
+	err := os.Mkdir(subDir, 0755)
+	require.NoError(t, err)
+
+	// Save current directory
+	originalDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	cmd := &cdCommand{targetDir: subDir}
+	retCode, exited := cmd.Execute(nil, nil, nil)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	// Verify we changed directory
+	currentDir, err := os.Getwd()
+	require.NoError(t, err)
+	assert.Equal(t, subDir, currentDir)
+}
+
+func TestCdCommand_Execute_NoPath(t *testing.T) {
+	// Save current directory
+	originalDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	env := NewEnv()
+	cmd := &cdCommand{targetDir: ""}
+	retCode, exited := cmd.Execute(nil, nil, env)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	// Verify we changed to home directory
+	currentDir, err := os.Getwd()
+	require.NoError(t, err)
+	assert.Equal(t, homeDir, currentDir)
+}
+
+func TestCdCommand_Execute_NonexistentPath(t *testing.T) {
+	cmd := &cdCommand{targetDir: "/nonexistent/directory/path"}
+	retCode, exited := cmd.Execute(nil, nil, nil)
+	assert.Equal(t, 1, retCode)
+	assert.False(t, exited)
+}
+
+func TestCdCommand_Execute_RelativePath(t *testing.T) {
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "subdir")
+	err := os.Mkdir(subDir, 0755)
+	require.NoError(t, err)
+
+	// Save current directory
+	originalDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	// Change to tmpDir first
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	// Now use relative path
+	cmd := &cdCommand{targetDir: "subdir"}
+	retCode, exited := cmd.Execute(nil, nil, nil)
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	// Verify we changed directory
+	currentDir, err := os.Getwd()
+	require.NoError(t, err)
+	assert.Equal(t, subDir, currentDir)
+}
+
+func TestLsCommand_Execute_CurrentDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create test files
+	testFile1 := filepath.Join(tmpDir, "file1.txt")
+	testFile2 := filepath.Join(tmpDir, "file2.txt")
+	err := os.WriteFile(testFile1, []byte("content1"), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(testFile2, []byte("content2"), 0644)
+	require.NoError(t, err)
+
+	// Save current directory
+	originalDir, err := os.Getwd()
+	require.NoError(t, err)
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	// Change to tmpDir
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	cmd := &lsCommand{targetDir: ""}
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	retCode, exited := cmd.Execute(nil, w, nil)
+	assert.NoError(t, w.Close())
+
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	buf := make([]byte, 1024)
+	n, _ := r.Read(buf)
+	output := strings.TrimSpace(string(buf[:n]))
+	lines := strings.Split(output, "\n")
+
+	// Should contain both files
+	assert.Contains(t, lines, "file1.txt")
+	assert.Contains(t, lines, "file2.txt")
+}
+
+func TestLsCommand_Execute_WithPath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create test files
+	testFile1 := filepath.Join(tmpDir, "file1.txt")
+	testFile2 := filepath.Join(tmpDir, "file2.txt")
+	err := os.WriteFile(testFile1, []byte("content1"), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(testFile2, []byte("content2"), 0644)
+	require.NoError(t, err)
+
+	cmd := &lsCommand{targetDir: tmpDir}
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	retCode, exited := cmd.Execute(nil, w, nil)
+	assert.NoError(t, w.Close())
+
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	buf := make([]byte, 1024)
+	n, _ := r.Read(buf)
+	output := strings.TrimSpace(string(buf[:n]))
+	lines := strings.Split(output, "\n")
+
+	// Should contain both files
+	assert.Contains(t, lines, "file1.txt")
+	assert.Contains(t, lines, "file2.txt")
+}
+
+func TestLsCommand_Execute_NonexistentPath(t *testing.T) {
+	cmd := &lsCommand{targetDir: "/nonexistent/directory/path"}
+	retCode, exited := cmd.Execute(nil, nil, nil)
+	assert.Equal(t, 1, retCode)
+	assert.False(t, exited)
+}
+
+func TestLsCommand_Execute_WithSubdirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "subdir")
+	err := os.Mkdir(subDir, 0755)
+	require.NoError(t, err)
+
+	testFile := filepath.Join(subDir, "file.txt")
+	err = os.WriteFile(testFile, []byte("content"), 0644)
+	require.NoError(t, err)
+
+	cmd := &lsCommand{targetDir: subDir}
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	retCode, exited := cmd.Execute(nil, w, nil)
+	assert.NoError(t, w.Close())
+
+	assert.Equal(t, 0, retCode)
+	assert.False(t, exited)
+
+	buf := make([]byte, 1024)
+	n, _ := r.Read(buf)
+	output := strings.TrimSpace(string(buf[:n]))
+	lines := strings.Split(output, "\n")
+
+	assert.Contains(t, lines, "file.txt")
+}
+
+func TestCommandFactory_GetCommand_Cd(t *testing.T) {
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+
+	desc := CommandDescription{
+		name:      CDCommand,
+		arguments: []string{"cd", "/tmp"},
+	}
+
+	cmd, err := factory.GetCommand(desc)
+	assert.NoError(t, err)
+	assert.NotNil(t, cmd)
+
+	_, ok := cmd.(*cdCommand)
+	assert.True(t, ok)
+}
+
+func TestCommandFactory_GetCommand_Ls(t *testing.T) {
+	env := NewEnv()
+	factory := NewCommandFactory(env)
+
+	desc := CommandDescription{
+		name:      LSCommand,
+		arguments: []string{"ls", "/tmp"},
+	}
+
+	cmd, err := factory.GetCommand(desc)
+	assert.NoError(t, err)
+	assert.NotNil(t, cmd)
+
+	_, ok := cmd.(*lsCommand)
+	assert.True(t, ok)
+}
