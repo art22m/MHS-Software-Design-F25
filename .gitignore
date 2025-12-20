@@ -28,3 +28,6 @@ go.work
 # Built binaries
 gocli/cli
 cli
+
+cmsg/build/*
+.cache
