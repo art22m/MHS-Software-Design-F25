@@ -2,106 +2,106 @@
 classDiagram
     direction LR
 
-    class Заказ {
-        +int НомерЗаказа
-        +int КоличествоАвтомобилей
-        +string Комплектация
-        +string Цвет
-        +Дата ДатаРазмещения
-        +Дилер Дилер
+    class Order {
+        +int OrderNumber
+        +int CarQuantity
+        +string Configuration
+        +string Color
+        +Date PlacementDate
+        +Dealer Dealer
     }
 
-    class ПроизводственныйПлан {
+    class ProductionPlan {
         +int ID
-        +Дата ДатаПлана
-        +Список<Автомобиль> ПоследовательностьСборки
+        +Date PlanDate
+        +List<Car> AssemblySequence
     }
 
-    class Автомобиль {
+    class Car {
         +string VIN
-        +string НомерКузова
-        +string Модель
-        +string Комплектация
-        +string Цвет
-        +СтатусАвтомобиля Статус
-        +Заказ Заказ
-        +ПроизводственныйПлан План
+        +string BodyNumber
+        +string Model
+        +string Configuration
+        +string Color
+        +CarStatus Status
+        +Order Order
+        +ProductionPlan Plan
     }
 
-    class УчастокКонвейера {
+    class AssemblySection {
         +int ID
-        +string Название
-        +Список<РемонтнаяЗона> РемонтныеЗоны
+        +string Name
+        +List<RepairZone> RepairZones
     }
 
-    class РемонтнаяЗона {
+    class RepairZone {
         +int ID
-        +string Название
-        +int КоличествоРемонтныхМест
-        +УчастокКонвейера Участок
-        +РемонтнаяБригада ТекущаяБригада
+        +string Name
+        +int RepairPlaceCount
+        +AssemblySection Section
+        +RepairTeam CurrentTeam
     }
 
-    class РемонтноеМесто {
+    class RepairPlace {
         +int ID
-        +string НомерМеста
-        +СтатусМеста Статус
-        +РемонтнаяЗона Зона
-        +Автомобиль ТекущийАвтомобиль
+        +string PlaceNumber
+        +PlaceStatus Status
+        +RepairZone Zone
+        +Car CurrentCar
     }
 
-    class РемонтнаяБригада {
+    class RepairTeam {
         +int ID
-        +string Название
-        +Список<Ремонтник> ЧленыБригады
-        +Бригадир Бригадир
+        +string Name
+        +List<Repairer> TeamMembers
+        +Foreman Foreman
     }
 
-    class Работник {
-        +int ТабельныйНомер
-        +string ФИО
-        +string Должность
+    class Employee {
+        +int PersonnelNumber
+        +string FullName
+        +string Position
     }
 
-    class Ремонтник {
-        +СтатусДоступности Доступность
+    class Repairer {
+        +AvailabilityStatus Availability
     }
 
-    class Бригадир {
-        +РемонтнаяБригада Бригада
+    class Foreman {
+        +RepairTeam Team
     }
 
-    class Дефект {
+    class Defect {
         +int ID
-        +Дата ВремяОбнаружения
-        +string Описание
-        +string МестоДефектаНаСхеме
-        +string ВозможнаяПричина
-        +Автомобиль Автомобиль
-        +Работник ОбнаружившийРаботник
-        +Ремонт Ремонт
+        +Date DiscoveryTime
+        +string Description
+        +string DefectLocationOnSchema
+        +string PossibleCause
+        +Car Car
+        +Employee DiscoveringEmployee
+        +Repair Repair
     }
 
-    class Ремонт {
+    class Repair {
         +int ID
-        +Дата ВремяНачала
-        +Дата ВремяКонца
-        +Ремонтник ВыполнявшийРабочий
-        +РемонтноеМесто МестоРемонта
-        +Дата ВремяПоступленияВРемонт
+        +Date StartTime
+        +Date EndTime
+        +Repairer PerformedBy
+        +RepairPlace RepairLocation
+        +Date ArrivalToRepairTime
     }
 
-    Автомобиль "1" -- "1" Заказ : относится к
-    Автомобиль "many" -- "1" ПроизводственныйПлан : включен в
-    УчастокКонвейера "1" -- "1..4" РемонтнаяЗона : содержит
-    РемонтнаяЗона "1" -- "1..6" РемонтноеМесто : содержит
-    РемонтнаяБригада "1" -- "1" Бригадир : руководит
-    РемонтнаяБригада "1" -- "many" Ремонтник : состоит из
-    РемонтнаяЗона "1" -- "1" РемонтнаяБригада : обслуживается
-    Дефект "1" -- "1" Автомобиль : обнаружен на
-    Ремонт "1" -- "1" Дефект : исправляет
-    Ремонт "1" -- "1" Ремонтник : выполнен
-    Ремонт "1" -- "1" РемонтноеМесто : на
-    Работник <|-- Ремонтник : наследование
-    Работник <|-- Бригадир : наследование
+    Car "1" -- "1" Order : belongs to
+    Car "many" -- "1" ProductionPlan : included in
+    AssemblySection "1" -- "1..4" RepairZone : contains
+    RepairZone "1" -- "1..6" RepairPlace : contains
+    RepairTeam "1" -- "1" Foreman : manages
+    RepairTeam "1" -- "many" Repairer : consists of
+    RepairZone "1" -- "1" RepairTeam : serviced by
+    Defect "1" -- "1" Car : found on
+    Repair "1" -- "1" Defect : fixes
+    Repair "1" -- "1" Repairer : performed by
+    Repair "1" -- "1" RepairPlace : at
+    Employee <|-- Repairer : inheritance
+    Employee <|-- Foreman : inheritance
 ```

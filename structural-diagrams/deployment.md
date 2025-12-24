@@ -11,7 +11,7 @@ C4Deployment
             }
 
             Deployment_Node(worker_nodes, "Рабочие узлы", "Исполнение приложения") {
-                Container(monolith_app, "Сервис Учета Дефектов", "Единое приложение со всей бизнес-логикой", "API, HTTPS")
+                Container(monolith_app, "Сервис Учета Дефектов", "Единое приложение со всей бизнес-логикой", "k8s Deployment")
             }
 
             Rel(ingress_controller, monolith_app, "Маршрутизация всех запросов", "HTTPS/HTTP")
