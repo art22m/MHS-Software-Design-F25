@@ -1,5 +1,3 @@
-
-
 ## Диаграмма конечных автоматов, описывающая поведение микроволновки
 
 **Состояния:**
@@ -14,19 +12,29 @@
 8. Finish Warm-up — завершение разогрева по истечении времени (переходное/финальное состояние).
 
 **Переходы:**
-Из начального состояния Start система попадает в Idle / door closed: микроволновка готова к работе, но время не задано.
-Из Idle / door closed по событию Opening door -> Idle / door open.
-Из Set time по событию Opening door -> Idle / door open (пользователь открыл дверь во время настройки).
-Из Warming по событию Opening door / Pause -> Idle / door open (открытие двери во время нагрева приводит к остановке/паузе нагрева).
-Из Idle / door open по событию Close door:
-Если времени нет -> Idle / door closed;
-Если время осталось/задано -> Idle / Continue warming (можно продолжить разогрев).
 
-Из Idle / door closed по событию Set time -> Set time.
-Из Set time по событию Start warming -> Warming (запуск нагрева с заданным временем).
+Из начального состояния Start система попадает в Idle / door closed: микроволновка готова к работе, но время не задано. \
+Из Idle / door closed по событию Opening door -> Idle / door open. \
+Из Set time по событию Opening door -> Idle / door open (пользователь открыл дверь во время настройки). \
+Из Warming по событию Opening door / Pause -> Idle / door open (открытие двери во время нагрева приводит к остановке/паузе нагрева). \
+Из Idle / door open по событию Close door: \
+Если времени нет -> Idle / door closed; \
+Если время осталось/задано -> Idle / Continue warming (можно продолжить разогрев). 
+
+Из Idle / door closed по событию Set time -> Set time. \ 
+Из Set time по событию Start warming -> Warming (запуск нагрева с заданным временем). \
 Из Set time по событию Stop -> Idle / door closed (отмена/сброс настройки).
 
-Из Warming по событию Set Pause -> Idle / Set Pause (пользователь поставил на паузу кнопкой).
-Из Idle / Set Pause по событию Continue -> Idle / Continue warming (переход в режим ожидания продолжения).
-Между Idle / Continue warming и Idle / Set Pause есть взаимные переходы по нажатию Pause/Continue.
+Из Warming по событию Set Pause -> Idle / Set Pause (пользователь поставил на паузу кнопкой). \
+Из Idle / Set Pause по событию Continue -> Idle / Continue warming (переход в режим ожидания продолжения). \
+Между Idle / Continue warming и Idle / Set Pause есть взаимные переходы по нажатию Pause/Continue. \
 Из Idle / Continue warming по событию Resume -> Warming (возобновление
+
+## Временная диаграмма стандартного сценария микроволновки
+
+В начале дверь закрыта, лампа/таймер/СВЧ — выкл.
+Открыли дверь (~4 c): дверь Open, лампа On, таймер и СВЧ Off.
+Закрыли дверь: дверь Closed, лампа Off.
+Нажали Start: на 10 минут включаются таймер On, СВЧ On, лампа On (дверь закрыта).
+Программа закончилась: таймер Off, СВЧ Off, лампа Off.
+Потом снова открыли дверь (~4 c): лампа On, СВЧ Off; закрыли: лампа Off.
